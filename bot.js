@@ -3,7 +3,7 @@ const { botToken } = require('./config');
 const { saveUser, saveGameToDatabase, updateVoteCount } = require('./database');
 
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
-const guildId = '824671154634489876';    // Replace with your Discord server's ID
+const guildId = '727340837423546400';    // Replace with your Discord server's ID
 
 const client = new Client({
   intents: [
