@@ -1,8 +1,8 @@
 -- Create the database
-CREATE DATABASE discord_game_bot;
+-- CREATE DATABASE discord_game_bot;
 
 -- Connect to the database
-\c discord_game_bot;
+-- \c discord_game_bot;
 
 -- Create tables
 CREATE TABLE users (
