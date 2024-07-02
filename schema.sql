@@ -1,8 +1,8 @@
 -- Create the database
-CREATE DATABASE boneZone_visionBoard;
+CREATE DATABASE discord_game_bot;
 
 -- Connect to the database
-\c boneZone_visionBoard;
+\c discord_game_bot;
 
 -- Create tables
 CREATE TABLE users (

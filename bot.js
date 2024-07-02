@@ -1,62 +1,95 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const { botToken } = require('./config');
 const { saveUser, saveGameToDatabase, updateVoteCount } = require('./database');
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions] });
+const clientId = '1257339880459997255';  // Replace with your bot's client ID
+const guildId = '824671154634489876';    // Replace with your Discord server's ID
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions
+  ]
+});
+
+const commands = [
+  {
+    name: 'postgame',
+    description: 'Post a new game',
+    options: [
+      {
+        name: 'title',
+        type: 3, // STRING
+        description: 'Title of the game',
+        required: true,
+      },
+      {
+        name: 'coverart',
+        type: 3, // STRING
+        description: 'URL of the cover art',
+        required: true,
+      },
+      {
+        name: 'description',
+        type: 3, // STRING
+        description: 'Description of the game',
+        required: true,
+      },
+    ],
+  },
+];
+
+const rest = new REST({ version: '9' }).setToken(botToken);
+
+(async () => {
+  try {
+    console.log('Started refreshing application (/) commands.');
+
+    await rest.put(
+      Routes.applicationGuildCommands(clientId, guildId),
+      { body: commands },
+    );
+
+    console.log('Successfully reloaded application (/) commands.');
+  } catch (error) {
+    console.error(error);
+  }
+})();
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
 
-client.on('messageCreate', async message => {
-  if (message.content.startsWith('!postgame')) {
-    const userId = await saveUser(message.author.id, message.author.username);
-    const gameDetails = parseGameDetails(message.content);
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isCommand()) return;
+
+  const { commandName, options } = interaction;
+
+  if (commandName === 'postgame') {
+    const title = options.getString('title');
+    const coverArtUrl = options.getString('coverart');
+    const description = options.getString('description');
+
+    const userId = await saveUser(interaction.user.id, interaction.user.username);
+    const gameDetails = { title, coverArtUrl, description };
 
     try {
       const gameId = await saveGameToDatabase(gameDetails, userId);
       const embed = createGameEmbed(gameDetails, gameId);
-      const sentMessage = await message.channel.send({ embeds: [embed] });
-      
-      await sentMessage.react('👍'); // Thumbs up for "Yes"
-      await sentMessage.react('👎'); // Thumbs down for "No"
+      await interaction.reply({ embeds: [embed] });
 
-      message.reply('Game posted successfully!');
+      const message = await interaction.fetchReply();
+      await message.react('👍');
+      await message.react('👎');
+
     } catch (error) {
       console.error('Error posting game:', error);
-      message.reply('Error posting game. Please try again later.');
+      await interaction.reply('Error posting game. Please try again later.');
     }
   }
 });
-
-client.on('messageReactionAdd', async (reaction, user) => {
-  if (user.bot) return; // Ignore bot reactions
-
-  const userId = await saveUser(user.id, user.username);
-
-  if (reaction.message.embeds.length > 0 && reaction.message.embeds[0].footer) {
-    const gameId = reaction.message.embeds[0].footer.text.split(': ')[1];
-
-    try {
-      if (reaction.emoji.name === '👍') {
-        await updateVoteCount(gameId, userId, 1);
-      } else if (reaction.emoji.name === '👎') {
-        await updateVoteCount(gameId, userId, -1);
-      }
-    } catch (error) {
-      console.error('Error updating vote count:', error);
-    }
-  }
-});
-
-function parseGameDetails(messageContent) {
-  const [command, title, coverArtUrl, ...description] = messageContent.split(' ');
-  return {
-    title,
-    coverArtUrl,
-    description: description.join(' '),
-  };
-}
 
 function createGameEmbed(gameDetails, gameId) {
   return {

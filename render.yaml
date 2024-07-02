@@ -7,18 +7,14 @@ services:
     startCommand: "npm start"
     envVars:
       - key: BOT_TOKEN
-        value: your_discord_bot_token
+        fromDatabase: true
       - key: DB_USER
-        value: your_db_user
+        fromDatabase: true
       - key: DB_HOST
-        value: your_db_host
+        fromDatabase: true
       - key: DB_NAME
-        value: your_db_name
+        fromDatabase: true
       - key: DB_PASSWORD
-        value: your_db_password
+        fromDatabase: true
       - key: DB_PORT
-        value: your_db_port
-    postgresDatabases:
-      - name: discord_game_bot
-        user: db_user
-        password: db_password
+        value: 5432  # Port number is typically not sensitive
