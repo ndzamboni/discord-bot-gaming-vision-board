@@ -4,7 +4,7 @@ services:
     env: node
     plan: free
     buildCommand: "npm install"
-    startCommand: "npm start"
+    startCommand: PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f db/schema.sql && npm start
     envVars:
       - key: BOT_TOKEN
         fromDatabase: true
