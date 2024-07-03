@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, TextInputBuilder, ModalBuilder, TextInputStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
 const { saveUser, saveGameToDatabase } = require('./database');
@@ -26,6 +26,12 @@ const commands = [
         description: 'Name of the game',
         required: true,
         autocomplete: true,
+      },
+      {
+        name: 'players',
+        type: 4, // INTEGER
+        description: 'Number of players needed',
+        required: true,
       },
     ],
   },
@@ -62,7 +68,9 @@ client.on('interactionCreate', async interaction => {
 
       if (commandName === 'bonezoneboard') {
         const gameName = options.getString('gamename');
+        const players = options.getInteger('players');
         console.log('Game name provided:', gameName);
+        console.log('Number of players:', players);
 
         await interaction.deferReply();  // Acknowledge the interaction
 
@@ -99,7 +107,7 @@ client.on('interactionCreate', async interaction => {
             .addOptions(gameOptions),
         );
 
-        await interaction.editReply({ content: 'Select a game from the list:', components: [row] });
+        await interaction.editReply({ content: 'Select a game from the list and enter the number of players:', components: [row] });
       }
     } else if (interaction.isAutocomplete()) {
       const focusedOption = interaction.options.getFocused();
@@ -126,27 +134,48 @@ client.on('interactionCreate', async interaction => {
       const title = gameData.name;
       const coverArtUrl = gameData.header_image;
       const description = gameData.short_description;
+      const price = gameData.price_overview ? `${gameData.price_overview.final_formatted}` : 'Free';
 
-      const gameDetails = { title, coverArtUrl, description };
-      const userId = await saveUser(interaction.user.id, interaction.user.username);
+      const gameDetails = { title, coverArtUrl, description, price };
 
-      const gameId = await saveGameToDatabase(gameDetails, userId);
+      const modal = new ModalBuilder()
+        .setCustomId('playerModal')
+        .setTitle('Number of Players')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('playerCount')
+              .setLabel('How many players are needed?')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          )
+        );
 
-      const embed = new EmbedBuilder()
-        .setTitle(gameDetails.title)
-        .setDescription(gameDetails.description)
-        .setImage(gameDetails.coverArtUrl)
-        .setFooter({ text: `Game ID: ${gameId}` });
+      await interaction.showModal(modal);
+      interaction.client.once('interactionCreate', async modalInteraction => {
+        if (!modalInteraction.isModalSubmit()) return;
+        const playerCount = modalInteraction.fields.getTextInputValue('playerCount');
 
-      await interaction.update({ content: null, embeds: [embed], components: [] });
+        const userId = await saveUser(modalInteraction.user.id, modalInteraction.user.username);
 
-      const message = await interaction.fetchReply();
-      try {
-        await message.react('👍');
-        await message.react('👎');
-      } catch (reactionError) {
-        console.error('Error adding reactions:', reactionError);
-      }
+        const gameId = await saveGameToDatabase({ ...gameDetails, playerCount }, userId);
+
+        const embed = new EmbedBuilder()
+          .setTitle(gameDetails.title)
+          .setDescription(`${gameDetails.description}\n\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}`)
+          .setImage(gameDetails.coverArtUrl)
+          .setFooter({ text: `Game ID: ${gameId}` });
+
+        await modalInteraction.update({ content: null, embeds: [embed], components: [] });
+
+        const message = await modalInteraction.fetchReply();
+        try {
+          await message.react('👍');
+          await message.react('👎');
+        } catch (reactionError) {
+          console.error('Error adding reactions:', reactionError);
+        }
+      });
     }
   } catch (error) {
     console.error('Error handling interaction:', error);
