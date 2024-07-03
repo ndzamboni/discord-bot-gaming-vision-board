@@ -73,7 +73,7 @@ client.on('interactionCreate', async interaction => {
           return;
         }
 
-        const options = matchingGames.map(game => ({
+        const gameOptions = matchingGames.map(game => ({
           label: game.name,
           value: game.appid.toString(),
         }));
@@ -82,7 +82,7 @@ client.on('interactionCreate', async interaction => {
           new MessageSelectMenu()
             .setCustomId('select-game')
             .setPlaceholder('Select a game')
-            .addOptions(options),
+            .addOptions(gameOptions),
         );
 
         await interaction.reply({ content: 'Select a game from the list:', components: [row] });
