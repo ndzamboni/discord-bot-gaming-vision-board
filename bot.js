@@ -52,15 +52,13 @@ client.once('ready', () => {
 });
 
 client.on('interactionCreate', async interaction => {
-  if (!interaction.isCommand() && !interaction.isSelectMenu()) return;
+  try {
+    if (interaction.isCommand()) {
+      const { commandName, options } = interaction;
 
-  if (interaction.isCommand()) {
-    const { commandName, options } = interaction;
+      if (commandName === 'bonezoneboard') {
+        const gameName = options.getString('gamename');
 
-    if (commandName === 'bonezoneboard') {
-      const gameName = options.getString('gamename');
-
-      try {
         const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
         const apps = response.data.applist.apps;
         const matchingGames = apps.filter(app => app.name.toLowerCase().includes(gameName.toLowerCase()));
@@ -83,16 +81,10 @@ client.on('interactionCreate', async interaction => {
         );
 
         await interaction.reply({ content: 'Select a game from the list:', components: [row] });
-
-      } catch (error) {
-        console.error('Failed to fetch games from Steam:', error);
-        await interaction.reply('Failed to fetch games from Steam. Please try again later.');
       }
-    }
-  } else if (interaction.isSelectMenu()) {
-    const selectedAppId = interaction.values[0];
+    } else if (interaction.isSelectMenu()) {
+      const selectedAppId = interaction.values[0];
 
-    try {
       const response = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedAppId}&key=${steamApiKey}`);
       const gameData = response.data[selectedAppId].data;
       const title = gameData.name;
@@ -109,10 +101,13 @@ client.on('interactionCreate', async interaction => {
       const message = await interaction.fetchReply();
       await message.react('👍');
       await message.react('👎');
-
-    } catch (error) {
-      console.error('Failed to fetch game from Steam:', error);
-      await interaction.update('Failed to fetch game details from Steam. Please try again later.');
+    }
+  } catch (error) {
+    console.error('Error handling interaction:', error);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: 'There was an error while processing your request. Please try again later.', ephemeral: true });
+    } else {
+      await interaction.reply({ content: 'There was an error while processing your request. Please try again later.', ephemeral: true });
     }
   }
 });
