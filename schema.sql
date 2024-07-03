@@ -15,8 +15,7 @@ CREATE TABLE games (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   cover_art_url TEXT NOT NULL,
-  description TEXT,
-  votes INT DEFAULT 0,
+  player_count INT NOT NULL, -- Add this line
   posted_by INT REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -29,3 +28,4 @@ CREATE TABLE votes (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, game_id)
 );
+
