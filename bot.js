@@ -84,7 +84,15 @@ client.on('interactionCreate', async interaction => {
         if (isNumeric) {
           matchingGames = apps.filter(app => app.appid.toString() === gameName);
         } else {
-          matchingGames = apps.filter(app => app.name.toLowerCase().includes(gameName.toLowerCase()));
+          const lowerCaseGameName = gameName.toLowerCase();
+          matchingGames = apps.filter(app => app.name.toLowerCase().includes(lowerCaseGameName))
+                              .sort((a, b) => {
+                                const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseGameName);
+                                const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseGameName);
+                                if (aStartsWith && !bStartsWith) return -1;
+                                if (!aStartsWith && bStartsWith) return 1;
+                                return a.name.length - b.name.length;
+                              });
         }
 
         console.log('Matching games:', matchingGames.map(game => game.name));
@@ -94,7 +102,7 @@ client.on('interactionCreate', async interaction => {
           return;
         }
 
-        const gameOptions = matchingGames.slice(0, 10).map(game => ({
+        const gameOptions = matchingGames.slice(0, 25).map(game => ({
           label: game.name,
           description: `App ID: ${game.appid}`,
           value: game.appid.toString(),
@@ -113,9 +121,16 @@ client.on('interactionCreate', async interaction => {
       const focusedOption = interaction.options.getFocused();
       const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
       const apps = response.data.applist.apps;
-      const matchingGames = apps.filter(app => app.name.toLowerCase().includes(focusedOption.toLowerCase()))
-                                .slice(0, 25)  // Show more results to help user find the correct game
-                                .filter(app => app.name.length <= 100);  // Ensure name length is within Discord's limits
+      const lowerCaseFocusedOption = focusedOption.toLowerCase();
+      const matchingGames = apps.filter(app => app.name.toLowerCase().includes(lowerCaseFocusedOption))
+                                .sort((a, b) => {
+                                  const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseFocusedOption);
+                                  const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseFocusedOption);
+                                  if (aStartsWith && !bStartsWith) return -1;
+                                  if (!aStartsWith && bStartsWith) return 1;
+                                  return a.name.length - b.name.length;
+                                })
+                                .slice(0, 25);  // Limit to 25 results
 
       await interaction.respond(
         matchingGames.map(game => ({
