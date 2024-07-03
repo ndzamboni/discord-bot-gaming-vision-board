@@ -214,7 +214,20 @@ client.on('interactionCreate', async interaction => {
 
         // Fetch the vision board message
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
-        const visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
+        let visionBoardMessage;
+        try {
+          visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
+        } catch (fetchError) {
+          console.error('Error fetching vision board message, creating a new one:', fetchError);
+          visionBoardMessage = await visionBoardChannel.send('Vision Board\nUse the /bonezoneboard command to insert a game!');
+          visionBoardMessageId = visionBoardMessage.id;
+        }
+
+        // Ensure the message to be updated is authored by the bot
+        if (visionBoardMessage.author.id !== client.user.id) {
+          console.error('Vision board message not authored by the bot.');
+          return;
+        }
 
         // Append the new game tile to the existing vision board message content
         const newTile = `\n**${gameDetails.title}**\n${gameDetails.description}\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}\n![Cover Art](${gameDetails.coverArtUrl})`;
