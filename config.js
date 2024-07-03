@@ -8,7 +8,7 @@ module.exports = {
     database: process.env.DB_NAME,
     password: process.env.DB_PASSWORD,
     port: process.env.DB_PORT,
-    // db url
     connectionString: process.env.DATABASE_URL,
   },
+  steamApiKey: process.env.STEAM_API_KEY,  
 };
