@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const { botToken } = require('./config');
+const axios = require('axios');
+const { botToken, steamApiKey } = require('./config');
 const { saveUser, saveGameToDatabase, deleteGameFromDatabase } = require('./database');
 
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
@@ -80,9 +81,14 @@ client.on('interactionCreate', async interaction => {
     const playerCount = options.getInteger('players');
 
     const userId = await saveUser(interaction.user.id, interaction.user.username);
-    
+
     // Fetch game details from Steam API
-    const gameDetails = await fetchGameDetailsFromSteam(gameName); // Assume you have a function to fetch game details
+    const gameDetails = await fetchGameDetailsFromSteam(gameName);
+
+    if (!gameDetails) {
+      await interaction.followUp({ content: 'Game not found.', ephemeral: true });
+      return;
+    }
 
     gameDetails.playerCount = playerCount;
     const gameId = await saveGameToDatabase(gameDetails, userId);
@@ -113,7 +119,7 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'deletegame') {
     await interaction.deferReply({ ephemeral: true });
     const gameId = options.getInteger('gameid');
-    
+
     const success = await deleteGameFromDatabase(gameId);
     if (success) {
       await interaction.followUp({ content: `Game with ID ${gameId} deleted.`, ephemeral: true });
@@ -141,11 +147,26 @@ client.on('interactionCreate', async interaction => {
 });
 
 async function fetchGameDetailsFromSteam(gameName) {
-  // Implement your Steam API fetching logic here
-  return {
-    name: gameName,
-    coverArtUrl: 'URL_OF_THE_GAME_COVER_ART',
-  };
+  try {
+    const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
+    const games = response.data.applist.apps;
+    const game = games.find(g => g.name.toLowerCase() === gameName.toLowerCase());
+
+    if (!game) {
+      return null;
+    }
+
+    const gameDetailsResponse = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${game.appid}&key=${steamApiKey}`);
+    const gameDetails = gameDetailsResponse.data[game.appid].data;
+
+    return {
+      name: gameDetails.name,
+      coverArtUrl: gameDetails.header_image,
+    };
+  } catch (error) {
+    console.error('Error fetching game details from Steam:', error);
+    return null;
+  }
 }
 
 client.login(botToken);
