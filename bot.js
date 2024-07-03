@@ -21,21 +21,7 @@ const commands = [
   {
     name: 'bonezoneboard',
     description: 'Post a game from Steam',
-    options: [
-      {
-        name: 'gamename',
-        type: 3, // STRING
-        description: 'Name of the game',
-        required: true,
-        autocomplete: true,
-      },
-      {
-        name: 'players',
-        type: 4, // INTEGER
-        description: 'Number of players needed',
-        required: true,
-      },
-    ],
+    options: [],
   },
   {
     name: 'setvisionboard',
@@ -77,10 +63,17 @@ client.once('ready', async () => {
 
   // Create the initial vision board message if it doesn't exist
   const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
-  if (!visionBoardMessageId) {
+  const messages = await visionBoardChannel.messages.fetch({ limit: 100 });
+
+  const visionBoardMessage = messages.find(msg => msg.content.startsWith('Dynamically add games to this vision board'));
+
+  if (!visionBoardMessage) {
     const initialMessage = await visionBoardChannel.send('Dynamically add games to this vision board to see who would be interested in playing certain games! This will be a good way to get groups together and gauge interest in a game. Use the /bonezoneboard command to insert a game!');
     visionBoardMessageId = initialMessage.id;
     console.log(`Vision board message created with ID: ${visionBoardMessageId}`);
+  } else {
+    visionBoardMessageId = visionBoardMessage.id;
+    console.log(`Vision board message found with ID: ${visionBoardMessageId}`);
   }
 });
 
@@ -89,7 +82,7 @@ client.on('interactionCreate', async interaction => {
     console.log('Interaction received:', interaction);
 
     if (interaction.isCommand()) {
-      const { commandName, options } = interaction;
+      const { commandName } = interaction;
       console.log('Command interaction:', commandName);
 
       if (commandName === 'createvisionboard') {
@@ -101,118 +94,103 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (commandName === 'setvisionboard') {
-        visionBoardMessageId = options.getString('messageid');
+        visionBoardMessageId = interaction.options.getString('messageid');
         await interaction.reply(`Vision board message ID set to ${visionBoardMessageId}`);
         return;
       }
 
       if (commandName === 'bonezoneboard') {
-        const gameName = options.getString('gamename');
-        const players = options.getInteger('players');
-        console.log('Game name provided:', gameName);
-        console.log('Number of players:', players);
+        const modal = new ModalBuilder()
+          .setCustomId('gameInputModal')
+          .setTitle('Post a Game from Steam')
+          .addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder()
+                .setCustomId('gamename')
+                .setLabel('Game Name')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+            ),
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder()
+                .setCustomId('playerCount')
+                .setLabel('Number of Players')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+            )
+          );
 
-        await interaction.deferReply();  // Acknowledge the interaction
-
-        const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
-        const apps = response.data.applist.apps;
-        console.log(`Total number of apps received: ${apps.length}`);
-
-        const isNumeric = !isNaN(gameName);
-        let matchingGames = [];
-
-        if (isNumeric) {
-          matchingGames = apps.filter(app => app.appid.toString() === gameName);
-        } else {
-          const lowerCaseGameName = gameName.toLowerCase();
-          matchingGames = apps.filter(app => app.name.toLowerCase().includes(lowerCaseGameName))
-                              .sort((a, b) => {
-                                const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseGameName);
-                                const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseGameName);
-                                if (aStartsWith && !bStartsWith) return -1;
-                                if (!aStartsWith && bStartsWith) return 1;
-                                return a.name.length - b.name.length;
-                              });
-        }
-
-        console.log('Matching games:', matchingGames.map(game => game.name));
-
-        if (matchingGames.length === 0) {
-          await interaction.editReply('No games found with that name.');
-          return;
-        }
-
-        const gameOptions = matchingGames.slice(0, 25).map(game => ({
-          label: game.name,
-          description: `App ID: ${game.appid}`,
-          value: game.appid.toString(),
-        }));
-
-        const row = new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId('select-game')
-            .setPlaceholder('Select a game')
-            .addOptions(gameOptions),
-        );
-
-        await interaction.editReply({ content: 'Select a game from the list and enter the number of players:', components: [row] });
+        await interaction.showModal(modal);
       }
-    } else if (interaction.isAutocomplete()) {
-      const focusedOption = interaction.options.getFocused();
+    } else if (interaction.isModalSubmit() && interaction.customId === 'gameInputModal') {
+      const gameName = interaction.fields.getTextInputValue('gamename');
+      const playerCount = interaction.fields.getTextInputValue('playerCount');
+      console.log('Game name provided:', gameName);
+      console.log('Number of players:', playerCount);
+
+      await interaction.deferReply();  // Acknowledge the interaction
+
       const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
       const apps = response.data.applist.apps;
-      const lowerCaseFocusedOption = focusedOption.toLowerCase();
-      const matchingGames = apps.filter(app => app.name.toLowerCase().includes(lowerCaseFocusedOption))
-                                .sort((a, b) => {
-                                  const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseFocusedOption);
-                                  const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseFocusedOption);
-                                  if (aStartsWith && !bStartsWith) return -1;
-                                  if (!aStartsWith && bStartsWith) return 1;
-                                  return a.name.length - b.name.length;
-                                })
-                                .slice(0, 25);  // Limit to 25 results
+      console.log(`Total number of apps received: ${apps.length}`);
 
-      await interaction.respond(
-        matchingGames.map(game => ({
-          name: game.name,
-          value: game.appid.toString(),
-        })),
+      const isNumeric = !isNaN(gameName);
+      let matchingGames = [];
+
+      if (isNumeric) {
+        matchingGames = apps.filter(app => app.appid.toString() === gameName);
+      } else {
+        const lowerCaseGameName = gameName.toLowerCase();
+        matchingGames = apps.filter(app => app.name.toLowerCase().includes(lowerCaseGameName))
+                            .sort((a, b) => {
+                              const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseGameName);
+                              const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseGameName);
+                              if (aStartsWith && !bStartsWith) return -1;
+                              if (!aStartsWith && bStartsWith) return 1;
+                              return a.name.length - b.name.length;
+                            });
+      }
+
+      console.log('Matching games:', matchingGames.map(game => game.name));
+
+      if (matchingGames.length === 0) {
+        await interaction.editReply('No games found with that name.');
+        return;
+      }
+
+      const gameOptions = matchingGames.slice(0, 25).map(game => ({
+        label: game.name,
+        description: `App ID: ${game.appid}`,
+        value: game.appid.toString(),
+      }));
+
+      const row = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('select-game')
+          .setPlaceholder('Select a game')
+          .addOptions(gameOptions),
       );
-    } else if (interaction.isStringSelectMenu()) {
-      console.log('Select menu interaction:', interaction.values);
 
-      const selectedAppId = interaction.values[0];
-      console.log('Selected App ID:', selectedAppId);
+      await interaction.editReply({ content: 'Select a game from the list:', components: [row] });
 
-      const response = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedAppId}&key=${steamApiKey}`);
-      const gameData = response.data[selectedAppId].data;
-      const title = gameData.name;
-      const coverArtUrl = gameData.header_image;
-      const description = gameData.short_description;
-      const price = gameData.price_overview ? `${gameData.price_overview.final_formatted}` : 'Free';
+      client.once('interactionCreate', async selectInteraction => {
+        if (!selectInteraction.isStringSelectMenu()) return;
 
-      const gameDetails = { title, coverArtUrl, description, price };
+        console.log('Select menu interaction:', selectInteraction.values);
 
-      const modal = new ModalBuilder()
-        .setCustomId('playerModal')
-        .setTitle('Number of Players')
-        .addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('playerCount')
-              .setLabel('How many players are needed?')
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
-          )
-        );
+        const selectedAppId = selectInteraction.values[0];
+        console.log('Selected App ID:', selectedAppId);
 
-      await interaction.showModal(modal);
+        const response = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedAppId}&key=${steamApiKey}`);
+        const gameData = response.data[selectedAppId].data;
+        const title = gameData.name;
+        const coverArtUrl = gameData.header_image;
+        const description = gameData.short_description;
+        const price = gameData.price_overview ? `${gameData.price_overview.final_formatted}` : 'Free';
 
-      client.once('interactionCreate', async modalInteraction => {
-        if (!modalInteraction.isModalSubmit()) return;
-        const playerCount = modalInteraction.fields.getTextInputValue('playerCount');
+        const gameDetails = { title, coverArtUrl, description, price };
 
-        const userId = await saveUser(modalInteraction.user.id, modalInteraction.user.username);
+        const userId = await saveUser(selectInteraction.user.id, selectInteraction.user.username);
 
         const gameId = await saveGameToDatabase({ ...gameDetails, playerCount }, userId);
 
@@ -222,9 +200,9 @@ client.on('interactionCreate', async interaction => {
           .setImage(gameDetails.coverArtUrl)
           .setFooter({ text: `Game ID: ${gameId}` });
 
-        await modalInteraction.update({ content: null, embeds: [embed], components: [] });
+        await selectInteraction.update({ content: null, embeds: [embed], components: [] });
 
-        const message = await modalInteraction.fetchReply();
+        const message = await selectInteraction.fetchReply();
         try {
           await message.react('👍');
           await message.react('👎');
