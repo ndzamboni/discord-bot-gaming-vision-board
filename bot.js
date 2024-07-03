@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, MessageActionRow, MessageSelectMenu } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
 const { saveUser, saveGameToDatabase } = require('./database');
@@ -11,8 +11,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions
-  ]
+    GatewayIntentBits.GuildMessageReactions,
+  ],
 });
 
 const commands = [
@@ -21,9 +21,9 @@ const commands = [
     description: 'Post a game from Steam',
     options: [
       {
-        name: 'appid',
+        name: 'gamename',
         type: 3, // STRING
-        description: 'Steam Application ID of the game',
+        description: 'Name of the game',
         required: true,
       },
     ],
@@ -52,26 +52,59 @@ client.once('ready', () => {
 });
 
 client.on('interactionCreate', async interaction => {
-  if (!interaction.isCommand()) return;
+  if (!interaction.isCommand() && !interaction.isSelectMenu()) return;
 
-  const { commandName, options } = interaction;
+  if (interaction.isCommand()) {
+    const { commandName, options } = interaction;
 
-  if (commandName === 'bonezoneboard') {
-    const appId = options.getString('appid');
+    if (commandName === 'bonezoneboard') {
+      const gameName = options.getString('gamename');
+
+      try {
+        const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
+        const apps = response.data.applist.apps;
+        const matchingGames = apps.filter(app => app.name.toLowerCase().includes(gameName.toLowerCase()));
+
+        if (matchingGames.length === 0) {
+          await interaction.reply('No games found with that name.');
+          return;
+        }
+
+        const options = matchingGames.slice(0, 25).map(game => ({
+          label: game.name,
+          value: game.appid.toString(),
+        }));
+
+        const row = new MessageActionRow().addComponents(
+          new MessageSelectMenu()
+            .setCustomId('select-game')
+            .setPlaceholder('Select a game')
+            .addOptions(options),
+        );
+
+        await interaction.reply({ content: 'Select a game from the list:', components: [row] });
+
+      } catch (error) {
+        console.error('Failed to fetch games from Steam:', error);
+        await interaction.reply('Failed to fetch games from Steam. Please try again later.');
+      }
+    }
+  } else if (interaction.isSelectMenu()) {
+    const selectedAppId = interaction.values[0];
 
     try {
-      const response = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${appId}&key=${steamApiKey}`);
-      const gameData = response.data[appId].data;
+      const response = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedAppId}&key=${steamApiKey}`);
+      const gameData = response.data[selectedAppId].data;
       const title = gameData.name;
       const coverArtUrl = gameData.header_image;
       const description = gameData.short_description;
 
       const gameDetails = { title, coverArtUrl, description };
       const userId = await saveUser(interaction.user.id, interaction.user.username);
-      
+
       const gameId = await saveGameToDatabase(gameDetails, userId);
       const embed = createGameEmbed(gameDetails, gameId);
-      await interaction.reply({ embeds: [embed] });
+      await interaction.update({ content: null, embeds: [embed], components: [] });
 
       const message = await interaction.fetchReply();
       await message.react('👍');
@@ -79,7 +112,7 @@ client.on('interactionCreate', async interaction => {
 
     } catch (error) {
       console.error('Failed to fetch game from Steam:', error);
-      await interaction.reply('Failed to fetch game details from Steam. Please check the AppID and try again.');
+      await interaction.update('Failed to fetch game details from Steam. Please try again later.');
     }
   }
 });
