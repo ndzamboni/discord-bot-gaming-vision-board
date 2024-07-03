@@ -72,8 +72,16 @@ const rest = new REST({ version: '10' }).setToken(botToken);
   }
 })();
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
+
+  // Create the initial vision board message if it doesn't exist
+  const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
+  if (!visionBoardMessageId) {
+    const initialMessage = await visionBoardChannel.send('Dynamically add games to this vision board to see who would be interested in playing certain games! This will be a good way to get groups together and gauge interest in a game. Use the /bonezoneboard command to insert a game!');
+    visionBoardMessageId = initialMessage.id;
+    console.log(`Vision board message created with ID: ${visionBoardMessageId}`);
+  }
 });
 
 client.on('interactionCreate', async interaction => {
@@ -240,6 +248,9 @@ client.on('interactionCreate', async interaction => {
 
         // Update the vision board message
         await visionBoardMessage.edit(updatedContent);
+
+        // Delete the user's original message
+        await message.delete();
       });
     }
   } catch (error) {
