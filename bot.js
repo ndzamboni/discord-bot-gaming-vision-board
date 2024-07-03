@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
 const { saveUser, saveGameToDatabase } = require('./database');
@@ -171,7 +171,15 @@ client.on('interactionCreate', async interaction => {
           .setImage(gameDetails.coverArtUrl)
           .setFooter({ text: `Game ID: ${gameId}` });
 
-        await interaction.editReply({ content: null, embeds: [embed], components: [] });
+        const deleteButton = new ButtonBuilder()
+          .setCustomId(`delete_${gameId}`)
+          .setLabel('Delete')
+          .setStyle(ButtonStyle.Danger);
+
+        const row = new ActionRowBuilder()
+          .addComponents(deleteButton);
+
+        await interaction.editReply({ content: null, embeds: [embed], components: [row] });
 
         const message = await interaction.fetchReply();
         try {
@@ -217,6 +225,28 @@ client.on('interactionCreate', async interaction => {
 
         // Delete the user's original message
         await interaction.deleteReply();
+      }
+    } else if (interaction.isButton()) {
+      const [action, gameId] = interaction.customId.split('_');
+
+      if (action === 'delete') {
+        // Fetch the vision board message
+        const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
+        let visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
+
+        // Ensure the message to be updated is authored by the bot
+        if (visionBoardMessage.author.id !== client.user.id) {
+          console.error('Vision board message not authored by the bot.');
+          return;
+        }
+
+        const gameRegex = new RegExp(`\\*\\*${gameId}\\*\\*[^\\*]*Price:[^\\*]*Players needed:[^\\*]*!\\[Cover Art\\][^\\*]*`);
+
+        // Remove the game details from the vision board message content
+        const updatedContent = visionBoardMessage.content.replace(gameRegex, '').trim();
+
+        await visionBoardMessage.edit(updatedContent);
+        await interaction.reply({ content: 'Game removed from the vision board.', ephemeral: true });
       }
     } else if (interaction.isAutocomplete()) {
       const focusedOption = interaction.options.getFocused(true);
