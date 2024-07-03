@@ -28,9 +28,7 @@ async function saveGameToDatabase(gameDetails, userId) {
 
 async function deleteGameFromDatabase(gameId) {
   const query = `
-    DELETE FROM games
-    WHERE id = $1
-    RETURNING id
+    DELETE FROM games WHERE id = $1
   `;
   const values = [gameId];
   const result = await pool.query(query, values);

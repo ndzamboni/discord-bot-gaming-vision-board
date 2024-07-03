@@ -4,7 +4,6 @@
 -- Connect to the database
 -- \c discord_game_bot;
 
--- Create tables
 -- Drop tables if they exist
 DROP TABLE IF EXISTS votes;
 DROP TABLE IF EXISTS games;
@@ -21,7 +20,7 @@ CREATE TABLE games (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   cover_art_url TEXT NOT NULL,
-  player_count INT NOT NULL,  -- Add this line
+  player_count INT NOT NULL,
   posted_by INT REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -34,5 +33,6 @@ CREATE TABLE votes (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, game_id)
 );
+
 
 
