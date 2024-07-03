@@ -107,19 +107,6 @@ client.on('interactionCreate', async interaction => {
             .addOptions(gameOptions),
         );
 
-        const modal = new ModalBuilder()
-          .setCustomId('playerModal')
-          .setTitle('Number of Players')
-          .addComponents(
-            new ActionRowBuilder().addComponents(
-              new TextInputBuilder()
-                .setCustomId('playerCount')
-                .setLabel('How many players are needed?')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true)
-            )
-          );
-
         await interaction.editReply({ content: 'Select a game from the list and enter the number of players:', components: [row] });
       }
     } else if (interaction.isAutocomplete()) {
@@ -147,8 +134,22 @@ client.on('interactionCreate', async interaction => {
       const title = gameData.name;
       const coverArtUrl = gameData.header_image;
       const description = gameData.short_description;
+      const price = gameData.price_overview ? `${gameData.price_overview.final_formatted}` : 'Free';
 
-      const gameDetails = { title, coverArtUrl, description };
+      const gameDetails = { title, coverArtUrl, description, price };
+
+      const modal = new ModalBuilder()
+        .setCustomId('playerModal')
+        .setTitle('Number of Players')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('playerCount')
+              .setLabel('How many players are needed?')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          )
+        );
 
       await interaction.showModal(modal);
       interaction.client.once('interactionCreate', async modalInteraction => {
@@ -161,7 +162,7 @@ client.on('interactionCreate', async interaction => {
 
         const embed = new EmbedBuilder()
           .setTitle(gameDetails.title)
-          .setDescription(`${gameDetails.description}\n\nPlayers needed: ${playerCount}`)
+          .setDescription(`${gameDetails.description}\n\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}`)
           .setImage(gameDetails.coverArtUrl)
           .setFooter({ text: `Game ID: ${gameId}` });
 
