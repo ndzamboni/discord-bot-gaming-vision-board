@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, TextInputBuilder, ModalBuilder, TextInputStyle } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
 const { saveUser, saveGameToDatabase } = require('./database');
@@ -183,7 +183,7 @@ client.on('interactionCreate', async interaction => {
 
         // Fetch the vision board message
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
-        const visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
+        let visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
 
         // Ensure the message to be updated is authored by the bot
         if (visionBoardMessage.author.id !== client.user.id) {
@@ -193,7 +193,24 @@ client.on('interactionCreate', async interaction => {
 
         // Append the new game tile to the existing vision board message content
         const newTile = `**${gameDetails.title}**\n${gameDetails.description}\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}\n![Cover Art](${gameDetails.coverArtUrl})`;
-        const updatedContent = `${visionBoardMessage.content}\n\n${newTile}`;
+
+        let updatedContent = visionBoardMessage.content + '\n\n' + newTile;
+
+        // Split content into multiple messages if it exceeds the limit
+        while (updatedContent.length > 2000) {
+          const splitIndex = updatedContent.lastIndexOf('\n\n', 2000);
+          const firstPart = updatedContent.substring(0, splitIndex);
+          const remainingPart = updatedContent.substring(splitIndex);
+
+          await visionBoardMessage.edit(firstPart);
+
+          // Send a new message with the remaining content
+          const newMessage = await visionBoardChannel.send(remainingPart.trim());
+          visionBoardMessageId = newMessage.id;
+          visionBoardMessage = newMessage;
+
+          updatedContent = remainingPart.trim();
+        }
 
         // Update the vision board message
         await visionBoardMessage.edit(updatedContent);
@@ -205,19 +222,25 @@ client.on('interactionCreate', async interaction => {
       const focusedOption = interaction.options.getFocused(true);
       const query = focusedOption.value;
 
-      if (!query) {
-        await interaction.respond([]);
-        return;
+      if (focusedOption.name === 'game') {
+        const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
+        const apps = response.data.applist.apps;
+
+        const lowerCaseQuery = query.toLowerCase();
+        const matchingGames = apps
+          .filter(app => app.name.toLowerCase().includes(lowerCaseQuery))
+          .sort((a, b) => {
+            const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseQuery);
+            const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseQuery);
+            if (aStartsWith && !bStartsWith) return -1;
+            if (!aStartsWith && bStartsWith) return 1;
+            return a.name.length - b.name.length;
+          })
+          .slice(0, 25)
+          .map(app => ({ name: app.name, value: app.appid.toString() }));
+
+        await interaction.respond(matchingGames);
       }
-
-      const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
-      const apps = response.data.applist.apps;
-
-      const matchingGames = apps.filter(app => app.name.toLowerCase().includes(query.toLowerCase()))
-                                .slice(0, 25)
-                                .map(app => ({ name: app.name, value: app.appid.toString() }));
-
-      await interaction.respond(matchingGames);
     }
   } catch (error) {
     console.error('Error handling interaction:', error);
