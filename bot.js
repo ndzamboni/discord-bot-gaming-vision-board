@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, MessageActionRow, MessageSelectMenu } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
 const { saveUser, saveGameToDatabase } = require('./database');
@@ -86,13 +86,28 @@ client.on('interactionCreate', async interaction => {
           return;
         }
 
-        const gameOptions = matchingGames.map(game => ({
+        // Fetch game details for the first 10 matching games to get their cover art
+        const gameDetailsPromises = matchingGames.slice(0, 10).map(async (game) => {
+          const gameResponse = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${game.appid}&key=${steamApiKey}`);
+          const gameData = gameResponse.data[game.appid].data;
+          return {
+            name: game.name,
+            appid: game.appid,
+            coverArtUrl: gameData.header_image,
+          };
+        });
+
+        const gameDetails = await Promise.all(gameDetailsPromises);
+
+        const gameOptions = gameDetails.map(game => ({
           label: game.name,
+          description: `App ID: ${game.appid}`,
           value: game.appid.toString(),
+          emoji: { id: null, name: '🎮' },
         }));
 
-        const row = new MessageActionRow().addComponents(
-          new MessageSelectMenu()
+        const row = new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
             .setCustomId('select-game')
             .setPlaceholder('Select a game')
             .addOptions(gameOptions),
@@ -105,7 +120,7 @@ client.on('interactionCreate', async interaction => {
       const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
       const apps = response.data.applist.apps;
       const matchingGames = apps.filter(app => app.name.toLowerCase().includes(focusedOption.toLowerCase()))
-                                .slice(0, 25)
+                                .slice(0, 10)  // Limit to 10 results
                                 .filter(app => app.name.length <= 100);  // Ensure name length is within Discord's limits
 
       await interaction.respond(
