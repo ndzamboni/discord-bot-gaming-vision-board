@@ -187,7 +187,8 @@ client.on('interactionCreate', async interaction => {
         );
 
       await interaction.showModal(modal);
-      interaction.client.once('interactionCreate', async modalInteraction => {
+
+      client.once('interactionCreate', async modalInteraction => {
         if (!modalInteraction.isModalSubmit()) return;
         const playerCount = modalInteraction.fields.getTextInputValue('playerCount');
 
