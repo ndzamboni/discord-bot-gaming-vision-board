@@ -5,6 +5,8 @@ const { saveUser, saveGameToDatabase } = require('./database');
 
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
 const guildId = '727340837423546400';    // Replace with your Discord server's ID
+const visionBoardChannelId = '1258046349765640283';  // Replace with your vision board channel ID
+let visionBoardMessageId = '1258047370319630367';  // Replace with your initial vision board message ID
 
 const client = new Client({
   intents: [
@@ -31,6 +33,18 @@ const commands = [
         name: 'players',
         type: 4, // INTEGER
         description: 'Number of players needed',
+        required: true,
+      },
+    ],
+  },
+  {
+    name: 'setvisionboard',
+    description: 'Set the vision board message ID',
+    options: [
+      {
+        name: 'messageid',
+        type: 3, // STRING
+        description: 'The message ID to use for the vision board',
         required: true,
       },
     ],
@@ -65,6 +79,12 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isCommand()) {
       const { commandName, options } = interaction;
       console.log('Command interaction:', commandName);
+
+      if (commandName === 'setvisionboard') {
+        visionBoardMessageId = options.getString('messageid');
+        await interaction.reply(`Vision board message ID set to ${visionBoardMessageId}`);
+        return;
+      }
 
       if (commandName === 'bonezoneboard') {
         const gameName = options.getString('gamename');
@@ -190,6 +210,17 @@ client.on('interactionCreate', async interaction => {
         } catch (reactionError) {
           console.error('Error adding reactions:', reactionError);
         }
+
+        // Fetch the vision board message
+        const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
+        const visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
+
+        // Append the new game tile to the existing vision board message content
+        const newTile = `\n**${gameDetails.title}**\n${gameDetails.description}\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}\n![Cover Art](${gameDetails.coverArtUrl})`;
+        const updatedContent = visionBoardMessage.content + newTile;
+
+        // Update the vision board message
+        await visionBoardMessage.edit(updatedContent);
       });
     }
   } catch (error) {
