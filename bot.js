@@ -64,22 +64,28 @@ client.on('interactionCreate', async interaction => {
         const gameName = options.getString('gamename');
         console.log('Game name provided:', gameName);
 
-        const response = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedAppId}&key=${steamApiKey}`);
-        const gameData = response.data[selectedAppId].data;
-        const title = gameData.name;
-        const coverArtUrl = gameData.header_image;
-        const description = gameData.short_description;
+        const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
+        const apps = response.data.applist.apps;
+        const matchingGames = apps.filter(app => app.name.toLowerCase().includes(gameName.toLowerCase())).slice(0, 25);
 
-        const gameDetails = { title, coverArtUrl, description };
-        const userId = await saveUser(interaction.user.id, interaction.user.username);
+        if (matchingGames.length === 0) {
+          await interaction.reply('No games found with that name.');
+          return;
+        }
 
-        const gameId = await saveGameToDatabase(gameDetails, userId);
-        const embed = createGameEmbed(gameDetails, gameId);
-        await interaction.update({ content: null, embeds: [embed], components: [] });
+        const options = matchingGames.map(game => ({
+          label: game.name,
+          value: game.appid.toString(),
+        }));
 
-        const message = await interaction.fetchReply();
-        await message.react('👍');
-        await message.react('👎');
+        const row = new MessageActionRow().addComponents(
+          new MessageSelectMenu()
+            .setCustomId('select-game')
+            .setPlaceholder('Select a game')
+            .addOptions(options),
+        );
+
+        await interaction.reply({ content: 'Select a game from the list:', components: [row] });
       }
     } else if (interaction.isAutocomplete()) {
       const focusedOption = interaction.options.getFocused();
