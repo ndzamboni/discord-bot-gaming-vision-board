@@ -85,7 +85,7 @@ client.on('interactionCreate', async interaction => {
         console.log('Game name provided:', gameName);
         console.log('Number of players:', playerCount);
 
-        await interaction.deferReply();  // Acknowledge the interaction
+        await interaction.deferReply({ ephemeral: true });  // Acknowledge the interaction
 
         const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
         const apps = response.data.applist.apps;
@@ -143,9 +143,10 @@ client.on('interactionCreate', async interaction => {
         const row = new ActionRowBuilder().addComponents(deleteButton);
 
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
-        await visionBoardChannel.send({ embeds: [embed], components: [row] });
+        const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
 
         await interaction.deleteReply();
+        await interaction.channel.messages.fetch(interaction.id).then(msg => msg.delete());
 
       } else if (commandName === 'deletegame') {
         const gameId = interaction.options.getInteger('gameid');
