@@ -68,7 +68,10 @@ client.on('interactionCreate', async interaction => {
 
         const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
         const apps = response.data.applist.apps;
+
         const matchingGames = apps.filter(app => app.name.toLowerCase().includes(gameName.toLowerCase())).slice(0, 25);
+
+        console.log('Matching games:', matchingGames.map(game => game.name));  // Log matching games
 
         if (matchingGames.length === 0) {
           await interaction.editReply('No games found with that name.');
