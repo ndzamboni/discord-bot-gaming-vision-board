@@ -2,9 +2,9 @@ const { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder
 const { botToken } = require('./config');
 const { saveUser, saveGameToDatabase, deleteGameFromDatabase } = require('./database');
 
-const clientId = 'YOUR_CLIENT_ID';  // Replace with your bot's client ID
-const guildId = 'YOUR_GUILD_ID';    // Replace with your Discord server's ID
-const visionBoardChannelId = 'YOUR_VISION_BOARD_CHANNEL_ID'; // Replace with the ID of the vision board channel
+const clientId = '1257339880459997255';  // Replace with your bot's client ID
+const guildId = '727340837423546400';    // Replace with your Discord server's ID
+const visionBoardChannelId = '1258046349765640283';  // Replace with your vision board channel ID
 
 const client = new Client({
   intents: [
