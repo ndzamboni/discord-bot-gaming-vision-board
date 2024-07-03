@@ -179,7 +179,7 @@ client.on('interactionCreate', async interaction => {
 
         const embed = new EmbedBuilder()
           .setTitle(gameDetails.title)
-          .setDescription(`${gameDetails.description}\n\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}`)
+          .setDescription(`${gameDetails.description}\n\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}\nGame ID: ${gameId}`)
           .setImage(gameDetails.coverArtUrl)
           .setFooter({ text: `Game ID: ${gameId}` });
 
@@ -204,7 +204,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         // Append the new game tile to the existing vision board message content
-        const newTile = `**${gameDetails.title}**\n${gameDetails.description}\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}\n![Cover Art](${gameDetails.coverArtUrl})`;
+        const newTile = `**${gameDetails.title}**\n${gameDetails.description}\nPrice: ${gameDetails.price}\nPlayers needed: ${playerCount}\nGame ID: ${gameId}\n![Cover Art](${gameDetails.coverArtUrl})`;
 
         let updatedContent = visionBoardMessage.content + '\n\n' + newTile;
 
