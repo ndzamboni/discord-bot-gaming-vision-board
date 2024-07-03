@@ -6,7 +6,7 @@ const { saveUser, saveGameToDatabase } = require('./database');
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
 const guildId = '727340837423546400';    // Replace with your Discord server's ID
 const visionBoardChannelId = '1258046349765640283';  // Replace with your vision board channel ID
-let visionBoardMessageId = '1258047370319630367';  // Replace with your initial vision board message ID
+let visionBoardMessageId;  // Initially undefined, will be set when the bot posts the initial message
 
 const client = new Client({
   intents: [
@@ -49,6 +49,10 @@ const commands = [
       },
     ],
   },
+  {
+    name: 'createvisionboard',
+    description: 'Create the initial vision board message',
+  },
 ];
 
 const rest = new REST({ version: '10' }).setToken(botToken);
@@ -79,6 +83,14 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isCommand()) {
       const { commandName, options } = interaction;
       console.log('Command interaction:', commandName);
+
+      if (commandName === 'createvisionboard') {
+        const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
+        const initialMessage = await visionBoardChannel.send('Dynamically add games to this vision board to see who would be interested in playing certain games! This will be a good way to get groups together and gauge interest in a game. Use the /bonezoneboard command to insert a game!');
+        visionBoardMessageId = initialMessage.id;
+        await interaction.reply(`Vision board message created with ID: ${visionBoardMessageId}`);
+        return;
+      }
 
       if (commandName === 'setvisionboard') {
         visionBoardMessageId = options.getString('messageid');
@@ -214,14 +226,7 @@ client.on('interactionCreate', async interaction => {
 
         // Fetch the vision board message
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
-        let visionBoardMessage;
-        try {
-          visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
-        } catch (fetchError) {
-          console.error('Error fetching vision board message, creating a new one:', fetchError);
-          visionBoardMessage = await visionBoardChannel.send('Vision Board\nUse the /bonezoneboard command to insert a game!');
-          visionBoardMessageId = visionBoardMessage.id;
-        }
+        const visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
 
         // Ensure the message to be updated is authored by the bot
         if (visionBoardMessage.author.id !== client.user.id) {
