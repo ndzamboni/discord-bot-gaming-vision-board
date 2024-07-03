@@ -64,12 +64,14 @@ client.on('interactionCreate', async interaction => {
         const gameName = options.getString('gamename');
         console.log('Game name provided:', gameName);
 
+        await interaction.deferReply();  // Acknowledge the interaction
+
         const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
         const apps = response.data.applist.apps;
         const matchingGames = apps.filter(app => app.name.toLowerCase().includes(gameName.toLowerCase())).slice(0, 25);
 
         if (matchingGames.length === 0) {
-          await interaction.reply('No games found with that name.');
+          await interaction.editReply('No games found with that name.');
           return;
         }
 
@@ -85,7 +87,7 @@ client.on('interactionCreate', async interaction => {
             .addOptions(gameOptions),
         );
 
-        await interaction.reply({ content: 'Select a game from the list:', components: [row] });
+        await interaction.editReply({ content: 'Select a game from the list:', components: [row] });
       }
     } else if (interaction.isAutocomplete()) {
       const focusedOption = interaction.options.getFocused();
