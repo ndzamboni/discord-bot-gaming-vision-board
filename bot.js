@@ -185,14 +185,6 @@ client.on('interactionCreate', async interaction => {
 
         await interaction.editReply({ content: null, embeds: [embed] });
 
-        const message = await interaction.fetchReply();
-        try {
-          await message.react('👍');
-          await message.react('👎');
-        } catch (reactionError) {
-          console.error('Error adding reactions:', reactionError);
-        }
-
         // Fetch the vision board message
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
         let visionBoardMessage = await visionBoardChannel.messages.fetch(visionBoardMessageId);
