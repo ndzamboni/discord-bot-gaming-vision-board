@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
 const { saveUser, saveGameToDatabase, deleteGameFromDatabase } = require('./database');
@@ -12,20 +12,21 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions
-  ]
+    GatewayIntentBits.GuildMessageReactions,
+  ],
 });
 
 const commands = [
   {
     name: 'bonezoneboard',
-    description: 'Post a new game',
+    description: 'Post a game from Steam',
     options: [
       {
         name: 'game',
         type: 3, // STRING
-        description: 'Name of the game',
+        description: 'Start typing the name of the game',
         required: true,
+        autocomplete: true,
       },
       {
         name: 'players',
@@ -37,19 +38,19 @@ const commands = [
   },
   {
     name: 'deletegame',
-    description: 'Delete a game',
+    description: 'Delete a game from the vision board',
     options: [
       {
         name: 'gameid',
         type: 4, // INTEGER
-        description: 'ID of the game to delete',
+        description: 'The game ID to delete',
         required: true,
       },
     ],
   },
 ];
 
-const rest = new REST({ version: '9' }).setToken(botToken);
+const rest = new REST({ version: '10' }).setToken(botToken);
 
 (async () => {
   try {
@@ -66,107 +67,152 @@ const rest = new REST({ version: '9' }).setToken(botToken);
   }
 })();
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
 
 client.on('interactionCreate', async interaction => {
-  if (!interaction.isCommand()) return;
-
-  const { commandName, options } = interaction;
-
-  if (commandName === 'bonezoneboard') {
-    await interaction.deferReply({ ephemeral: true });
-    const gameName = options.getString('game');
-    const playerCount = options.getInteger('players');
-
-    const userId = await saveUser(interaction.user.id, interaction.user.username);
-
-    // Fetch game details from Steam API
-    const gameDetails = await fetchGameDetailsFromSteam(gameName);
-
-    if (!gameDetails) {
-      await interaction.followUp({ content: 'Game not found.', ephemeral: true });
-      return;
-    }
-
-    gameDetails.playerCount = playerCount;
-    const gameId = await saveGameToDatabase(gameDetails, userId);
-
-    const embed = new EmbedBuilder()
-      .setTitle(gameDetails.name)
-      .setDescription(`Players needed: ${playerCount}`)
-      .setImage(gameDetails.coverArtUrl);
-
-    const button = new ButtonBuilder()
-      .setCustomId(`delete_${gameId}`)
-      .setLabel('Delete')
-      .setStyle(ButtonStyle.Danger);
-
-    const row = new ActionRowBuilder()
-      .addComponents(button);
-
-    const message = await interaction.followUp({ embeds: [embed], components: [row], fetchReply: true });
-
-    // Move the message to the vision board channel
-    const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
-    if (visionBoardChannel) {
-      await visionBoardChannel.send({ embeds: [embed], components: [row] });
-      await message.delete();
-    }
-  }
-
-  if (commandName === 'deletegame') {
-    await interaction.deferReply({ ephemeral: true });
-    const gameId = options.getInteger('gameid');
-
-    const success = await deleteGameFromDatabase(gameId);
-    if (success) {
-      await interaction.followUp({ content: `Game with ID ${gameId} deleted.`, ephemeral: true });
-    } else {
-      await interaction.followUp({ content: `Game with ID ${gameId} not found.`, ephemeral: true });
-    }
-  }
-});
-
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isButton()) return;
-
-  const customId = interaction.customId;
-  if (customId.startsWith('delete_')) {
-    const gameId = customId.split('_')[1];
-    const success = await deleteGameFromDatabase(gameId);
-
-    if (success) {
-      await interaction.update({ content: 'Game deleted.', components: [] });
-      await interaction.message.delete();
-    } else {
-      await interaction.followUp({ content: `Game with ID ${gameId} not found.`, ephemeral: true });
-    }
-  }
-});
-
-async function fetchGameDetailsFromSteam(gameName) {
   try {
-    const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
-    const games = response.data.applist.apps;
-    const game = games.find(g => g.name.toLowerCase() === gameName.toLowerCase());
+    console.log('Interaction received:', interaction);
 
-    if (!game) {
-      return null;
+    if (interaction.isCommand()) {
+      const { commandName } = interaction;
+      console.log('Command interaction:', commandName);
+
+      if (commandName === 'bonezoneboard') {
+        const gameName = interaction.options.getString('game');
+        const playerCount = interaction.options.getInteger('players');
+        console.log('Game name provided:', gameName);
+        console.log('Number of players:', playerCount);
+
+        await interaction.deferReply({ ephemeral: true });  // Acknowledge the interaction
+
+        const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
+        const apps = response.data.applist.apps;
+        console.log(`Total number of apps received: ${apps.length}`);
+
+        const isNumeric = !isNaN(gameName);
+        let matchingGames = [];
+
+        if (isNumeric) {
+          matchingGames = apps.filter(app => app.appid.toString() === gameName);
+        } else {
+          const lowerCaseGameName = gameName.toLowerCase();
+          matchingGames = apps.filter(app => app.name.toLowerCase().includes(lowerCaseGameName))
+                              .sort((a, b) => {
+                                const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseGameName);
+                                const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseGameName);
+                                if (aStartsWith && !bStartsWith) return -1;
+                                if (!aStartsWith && bStartsWith) return 1;
+                                return a.name.length - b.name.length;
+                              });
+        }
+
+        console.log('Matching games:', matchingGames.map(game => game.name));
+
+        if (matchingGames.length === 0) {
+          await interaction.editReply('No games found with that name.');
+          return;
+        }
+
+        const selectedApp = matchingGames[0]; // Automatically select the first matching game
+        console.log('Selected App:', selectedApp);
+
+        const gameResponse = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedApp.appid}&key=${steamApiKey}`);
+        const gameData = gameResponse.data[selectedApp.appid].data;
+        const title = gameData.name;
+        const coverArtUrl = gameData.header_image;
+
+        const gameDetails = { title, coverArtUrl };
+
+        const userId = await saveUser(interaction.user.id, interaction.user.username);
+
+        const gameId = await saveGameToDatabase({ ...gameDetails, playerCount }, userId);
+
+        const embed = new EmbedBuilder()
+          .setTitle(gameDetails.title)
+          .setDescription(`Players needed: ${playerCount}\nGame ID: ${gameId}`)
+          .setImage(gameDetails.coverArtUrl)
+          .setFooter({ text: `Game ID: ${gameId}` });
+
+        const deleteButton = new ButtonBuilder()
+          .setCustomId(`delete_${gameId}`)
+          .setLabel('Delete')
+          .setStyle(ButtonStyle.Danger);
+
+        const row = new ActionRowBuilder().addComponents(deleteButton);
+
+        const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
+        const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
+
+        await interaction.deleteReply();
+        await interaction.channel.messages.fetch(interaction.id).then(msg => msg.delete());
+
+      } else if (commandName === 'deletegame') {
+        const gameId = interaction.options.getInteger('gameid');
+
+        // Find and delete the game from the database
+        const result = await deleteGameFromDatabase(gameId);
+        if (!result) {
+          await interaction.reply({ content: `Game with ID ${gameId} not found.`, ephemeral: true });
+          return;
+        }
+
+        // Acknowledge the deletion
+        await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
+      }
+    } else if (interaction.isAutocomplete()) {
+      const focusedOption = interaction.options.getFocused(true);
+      const query = focusedOption.value;
+
+      if (focusedOption.name === 'game') {
+        const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
+        const apps = response.data.applist.apps;
+
+        const lowerCaseQuery = query.toLowerCase();
+        const matchingGames = apps
+          .filter(app => app.name.toLowerCase().includes(lowerCaseQuery))
+          .sort((a, b) => {
+            const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseQuery);
+            const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseQuery);
+            if (aStartsWith && !bStartsWith) return -1;
+            if (!aStartsWith && bStartsWith) return 1;
+            return a.name.length - b.name.length;
+          })
+          .slice(0, 25)
+          .map(app => ({ name: app.name, value: app.appid.toString() }));
+
+        await interaction.respond(matchingGames);
+      }
+    } else if (interaction.isButton()) {
+      const [action, gameId] = interaction.customId.split('_');
+      if (action === 'delete') {
+        // Find and delete the game from the database
+        const result = await deleteGameFromDatabase(gameId);
+        if (!result) {
+          await interaction.reply({ content: `Game with ID ${gameId} not found in database.`, ephemeral: true });
+          return;
+        }
+
+        // Delete the message containing the game
+        await interaction.message.delete();
+
+        // Acknowledge the deletion
+        await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
+      }
     }
-
-    const gameDetailsResponse = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${game.appid}&key=${steamApiKey}`);
-    const gameDetails = gameDetailsResponse.data[game.appid].data;
-
-    return {
-      name: gameDetails.name,
-      coverArtUrl: gameDetails.header_image,
-    };
   } catch (error) {
-    console.error('Error fetching game details from Steam:', error);
-    return null;
+    console.error('Error handling interaction:', error);
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: 'There was an error while processing your request. Please try again later.', ephemeral: true });
+      } else {
+        await interaction.reply({ content: 'There was an error while processing your request. Please try again later.', ephemeral: true });
+      }
+    } catch (followUpError) {
+      console.error('Error sending follow-up message:', followUpError);
+    }
   }
-}
+});
 
 client.login(botToken);
