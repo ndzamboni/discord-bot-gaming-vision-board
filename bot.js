@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
-const { saveUser, saveGameToDatabase, deleteGameFromDatabase } = require('./database');
+const { saveUser, saveGameToDatabase, deleteGameFromDatabase, addUpvote, getUpvotes } = require('./database');
 
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
 const guildId = '727340837423546400';    // Replace with your Discord server's ID
@@ -150,12 +150,7 @@ client.on('interactionCreate', async interaction => {
           .setLabel('👍')
           .setStyle(ButtonStyle.Success);
 
-        const downvoteButton = new ButtonBuilder()
-          .setCustomId(`downvote_${gameId}`)
-          .setLabel('👎')
-          .setStyle(ButtonStyle.Secondary);
-
-        const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton, downvoteButton);
+        const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton);
 
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
         const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
@@ -214,10 +209,18 @@ client.on('interactionCreate', async interaction => {
 
         // Acknowledge the deletion
         await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
-      } else if (action === 'upvote' || action === 'downvote') {
-        // Handle voting logic here
-        const voteType = action === 'upvote' ? 'upvote' : 'downvote';
-        await interaction.reply({ content: `You ${voteType}d game with ID ${gameId}.`, ephemeral: true });
+      } else if (action === 'upvote') {
+        // Handle upvoting logic
+        const userId = await saveUser(interaction.user.id, interaction.user.username);
+        await addUpvote(gameId, userId);
+
+        const upvotes = await getUpvotes(gameId);
+        const upvoteUsers = upvotes.map(vote => vote.username).join(', ');
+
+        const embed = EmbedBuilder.from(interaction.message.embeds[0])
+          .setFooter({ text: `Upvotes: ${upvotes.length}\n${upvoteUsers}` });
+
+        await interaction.update({ embeds: [embed] });
       }
     }
   } catch (error) {
@@ -235,4 +238,3 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(botToken);
-
