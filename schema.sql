@@ -9,7 +9,6 @@ DROP TABLE IF EXISTS votes;
 DROP TABLE IF EXISTS games;
 DROP TABLE IF EXISTS users;
 
--- Create tables
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   discord_id VARCHAR(255) UNIQUE NOT NULL,
@@ -20,19 +19,22 @@ CREATE TABLE games (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   cover_art_url TEXT NOT NULL,
-  player_count INT NOT NULL,
-  posted_by INT REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  player_count INTEGER NOT NULL,
+  user_id INTEGER REFERENCES users(id),
+  price VARCHAR(50),
+  description TEXT,
+  release_date VARCHAR(50),
+  reviews_score VARCHAR(50)
 );
 
 CREATE TABLE votes (
-  id SERIAL PRIMARY KEY,
-  user_id INT REFERENCES users(id),
-  game_id INT REFERENCES games(id),
-  vote INT NOT NULL, -- 1 for upvote, -1 for downvote
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(user_id, game_id)
+  game_id INTEGER REFERENCES games(id),
+  user_id INTEGER REFERENCES users(id),
+  vote_type VARCHAR(50),
+  PRIMARY KEY (game_id, user_id)
 );
+
+
 
 
 
