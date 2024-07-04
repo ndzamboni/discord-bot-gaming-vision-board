@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
-const { saveUser, saveGameToDatabase, deleteGameFromDatabase, addUpvote, getUpvotes } = require('./database');
+const { saveUser, saveGameToDatabase, deleteGameFromDatabase } = require('./database');
 
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
 const guildId = '727340837423546400';    // Replace with your Discord server's ID
@@ -120,23 +120,19 @@ client.on('interactionCreate', async interaction => {
 
         const gameResponse = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedApp.appid}&key=${steamApiKey}`);
         const gameData = gameResponse.data[selectedApp.appid].data;
-
         const title = gameData.name;
         const coverArtUrl = gameData.header_image;
         const price = gameData.price_overview ? gameData.price_overview.final_formatted : 'Free';
-        const description = gameData.short_description;
-        const releaseDate = gameData.release_date ? gameData.release_date.date : 'Unknown';
-        const reviewsScore = gameData.metacritic ? gameData.metacritic.score : 'No reviews';
 
-        const gameDetails = { title, coverArtUrl, price, description, releaseDate, reviewsScore };
+        const gameDetails = { title, coverArtUrl, price };
 
         const userId = await saveUser(interaction.user.id, interaction.user.username);
 
-        const gameId = await saveGameToDatabase({ ...gameDetails, playerCount, posted_by: userId }, userId);
+        const gameId = await saveGameToDatabase({ ...gameDetails, playerCount }, userId);
 
         const embed = new EmbedBuilder()
           .setTitle(gameDetails.title)
-          .setDescription(`Players needed: ${playerCount}\nPrice: ${gameDetails.price}\nRelease Date: ${gameDetails.releaseDate}\nMetacritic Score: ${gameDetails.reviewsScore}`)
+          .setDescription(`Price: ${gameDetails.price}\nPlayers needed: ${playerCount}\nGame ID: ${gameId}`)
           .setImage(gameDetails.coverArtUrl)
           .setFooter({ text: `Game ID: ${gameId}` });
 
@@ -147,15 +143,16 @@ client.on('interactionCreate', async interaction => {
 
         const upvoteButton = new ButtonBuilder()
           .setCustomId(`upvote_${gameId}`)
-          .setLabel('👍')
-          .setStyle(ButtonStyle.Success);
+          .setLabel('Upvote')
+          .setStyle(ButtonStyle.Primary);
 
-        const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton);
+        const row = new ActionRowBuilder().addComponents(upvoteButton, deleteButton);
 
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
         const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
 
         await interaction.deleteReply();
+        await interaction.channel.messages.fetch(interaction.id).then(msg => msg.delete());
 
       } else if (commandName === 'deletegame') {
         const gameId = interaction.options.getInteger('gameid');
@@ -209,27 +206,20 @@ client.on('interactionCreate', async interaction => {
         // Acknowledge the deletion
         await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
       } else if (action === 'upvote') {
-        // Add an upvote to the game
-        await addUpvote(gameId, interaction.user.id);
+        // Save the upvote to the database
+        const userId = await saveUser(interaction.user.id, interaction.user.username);
+        const success = await saveUpvote(gameId, userId);
+        if (!success) {
+          await interaction.reply({ content: `Failed to upvote the game with ID ${gameId}.`, ephemeral: true });
+          return;
+        }
 
-        // Get the upvotes
+        // Update the embed with the upvote information
         const upvotes = await getUpvotes(gameId);
+        const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+        embed.setDescription(embed.description + `\nUpvotes: ${upvotes.count}\nUsers: ${upvotes.users.join(', ')}`);
 
-        // Update the embed
-        const embed = interaction.message.embeds[0];
-        embed.fields = [
-          { name: 'Players needed', value: embed.description.split('\n')[0].split(': ')[1], inline: true },
-          { name: 'Price', value: embed.description.split('\n')[1].split(': ')[1], inline: true },
-          { name: 'Release Date', value: embed.description.split('\n')[2].split(': ')[1], inline: true },
-          { name: 'Metacritic Score', value: embed.description.split('\n')[3].split(': ')[1], inline: true },
-          { name: 'Upvotes', value: `${upvotes.length} (${upvotes.map(u => u.username).join(', ')})`, inline: true },
-        ];
-
-        // Edit the message
-        await interaction.message.edit({ embeds: [embed] });
-
-        // Acknowledge the upvote
-        await interaction.reply({ content: 'Upvoted!', ephemeral: true });
+        await interaction.update({ embeds: [embed], components: interaction.message.components });
       }
     }
   } catch (error) {
