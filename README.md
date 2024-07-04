@@ -72,22 +72,21 @@ The Bonezone Vision Board Discord Bot is a tool designed to facilitate group gam
 
    'gameid' (integer): ID of the game to delete.
 
- ## File Structure
+ ## License
 
-   ```
-      ├── config.js
-      ├── database.js
-      ├── schema.sql
-      ├── bot.js
-      ├── .env
-      ├── demo
-      │   ├── demoBot1.png
-      │   ├── demoBot2.png
-      │   ├── demoBot3.png
-      └── README.md
+ **This project is licensed under the MIT License. See the LICENSE file for details.**
 
+ ## Contributing
 
+ **Contributions are welcome! Please open an issue or submite a pull request for any improvements or bug fixes.**
+ 
+ ## Acknowledgements
 
+ **Discord Developer Portal**
+ **Steam API**
 
+ ## Author
+
+**ndzamboni** (Nick Zamboni)
 
 
