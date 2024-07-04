@@ -132,7 +132,7 @@ client.on('interactionCreate', async interaction => {
 
         const userId = await saveUser(interaction.user.id, interaction.user.username);
 
-        const gameId = await saveGameToDatabase({ ...gameDetails, playerCount }, userId);
+        const gameId = await saveGameToDatabase({ ...gameDetails, playerCount, posted_by: userId }, userId);
 
         const embed = new EmbedBuilder()
           .setTitle(gameDetails.title)
@@ -156,7 +156,6 @@ client.on('interactionCreate', async interaction => {
         const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
 
         await interaction.deleteReply();
-        await interaction.channel.messages.fetch(interaction.id).then(msg => msg.delete());
 
       } else if (commandName === 'deletegame') {
         const gameId = interaction.options.getInteger('gameid');
@@ -210,17 +209,27 @@ client.on('interactionCreate', async interaction => {
         // Acknowledge the deletion
         await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
       } else if (action === 'upvote') {
-        // Handle upvoting logic
-        const userId = await saveUser(interaction.user.id, interaction.user.username);
-        await addUpvote(gameId, userId);
+        // Add an upvote to the game
+        await addUpvote(gameId, interaction.user.id);
 
+        // Get the upvotes
         const upvotes = await getUpvotes(gameId);
-        const upvoteUsers = upvotes.map(vote => vote.username).join(', ');
 
-        const embed = EmbedBuilder.from(interaction.message.embeds[0])
-          .setFooter({ text: `Upvotes: ${upvotes.length}\n${upvoteUsers}` });
+        // Update the embed
+        const embed = interaction.message.embeds[0];
+        embed.fields = [
+          { name: 'Players needed', value: embed.description.split('\n')[0].split(': ')[1], inline: true },
+          { name: 'Price', value: embed.description.split('\n')[1].split(': ')[1], inline: true },
+          { name: 'Release Date', value: embed.description.split('\n')[2].split(': ')[1], inline: true },
+          { name: 'Metacritic Score', value: embed.description.split('\n')[3].split(': ')[1], inline: true },
+          { name: 'Upvotes', value: `${upvotes.length} (${upvotes.map(u => u.username).join(', ')})`, inline: true },
+        ];
 
-        await interaction.update({ embeds: [embed] });
+        // Edit the message
+        await interaction.message.edit({ embeds: [embed] });
+
+        // Acknowledge the upvote
+        await interaction.reply({ content: 'Upvoted!', ephemeral: true });
       }
     }
   } catch (error) {
