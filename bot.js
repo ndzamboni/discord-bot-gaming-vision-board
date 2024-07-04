@@ -120,10 +120,15 @@ client.on('interactionCreate', async interaction => {
 
         const gameResponse = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedApp.appid}&key=${steamApiKey}`);
         const gameData = gameResponse.data[selectedApp.appid].data;
+
         const title = gameData.name;
         const coverArtUrl = gameData.header_image;
+        const price = gameData.price_overview ? gameData.price_overview.final_formatted : 'Free';
+        const description = gameData.short_description;
+        const releaseDate = gameData.release_date ? gameData.release_date.date : 'Unknown';
+        const reviewsScore = gameData.metacritic ? gameData.metacritic.score : 'No reviews';
 
-        const gameDetails = { title, coverArtUrl };
+        const gameDetails = { title, coverArtUrl, price, description, releaseDate, reviewsScore };
 
         const userId = await saveUser(interaction.user.id, interaction.user.username);
 
@@ -131,7 +136,7 @@ client.on('interactionCreate', async interaction => {
 
         const embed = new EmbedBuilder()
           .setTitle(gameDetails.title)
-          .setDescription(`Players needed: ${playerCount}\nGame ID: ${gameId}`)
+          .setDescription(`Players needed: ${playerCount}\nPrice: ${gameDetails.price}\nRelease Date: ${gameDetails.releaseDate}\nMetacritic Score: ${gameDetails.reviewsScore}`)
           .setImage(gameDetails.coverArtUrl)
           .setFooter({ text: `Game ID: ${gameId}` });
 
@@ -140,7 +145,17 @@ client.on('interactionCreate', async interaction => {
           .setLabel('Delete')
           .setStyle(ButtonStyle.Danger);
 
-        const row = new ActionRowBuilder().addComponents(deleteButton);
+        const upvoteButton = new ButtonBuilder()
+          .setCustomId(`upvote_${gameId}`)
+          .setLabel('👍')
+          .setStyle(ButtonStyle.Success);
+
+        const downvoteButton = new ButtonBuilder()
+          .setCustomId(`downvote_${gameId}`)
+          .setLabel('👎')
+          .setStyle(ButtonStyle.Secondary);
+
+        const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton, downvoteButton);
 
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
         const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
@@ -199,6 +214,10 @@ client.on('interactionCreate', async interaction => {
 
         // Acknowledge the deletion
         await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
+      } else if (action === 'upvote' || action === 'downvote') {
+        // Handle voting logic here
+        const voteType = action === 'upvote' ? 'upvote' : 'downvote';
+        await interaction.reply({ content: `You ${voteType}d game with ID ${gameId}.`, ephemeral: true });
       }
     }
   } catch (error) {
@@ -216,3 +235,4 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(botToken);
+
