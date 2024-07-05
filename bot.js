@@ -185,7 +185,7 @@ client.on('interactionCreate', async interaction => {
         const upvoteCount = upvotes.length;
 
         const embed = interaction.message.embeds[0];
-        embed.setDescription(`Players needed: ${playerCount}\nGame ID: ${gameId}\nPrice: ${price}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
+        embed.setDescription(`Players needed: ${embed.fields[0].value.split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.fields[1].value.split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
 
         await interaction.message.edit({ embeds: [embed] });
         await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
@@ -200,17 +200,21 @@ client.on('interactionCreate', async interaction => {
 
         const matchingGames = apps.filter(app => app.name.toLowerCase().includes(searchQuery.toLowerCase()))
                                   .slice(0, 25)
-                                  .map(app => ({ name: app.name, value: app.appid.toString() }));
+                                  .map(app => ({ name: app.name.substring(0, 100), value: app.appid.toString() })); // Ensure names are within 100 characters
 
         await interaction.respond(matchingGames);
       }
     }
   } catch (error) {
     console.error('Error handling interaction:', error);
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-    } else {
-      await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+      } else {
+        await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+      }
+    } catch (followUpError) {
+      console.error('Error sending follow-up message:', followUpError);
     }
   }
 });
