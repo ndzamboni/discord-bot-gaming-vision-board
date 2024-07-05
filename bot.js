@@ -236,15 +236,3 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(botToken);
-
-async function getUpvotesForGame(gameId) {
-  const query = `
-    SELECT users.username
-    FROM votes
-    JOIN users ON votes.user_id = users.id
-    WHERE votes.game_id = $1
-  `;
-  const values = [gameId];
-  const result = await pool.query(query, values);
-  return result.rows;
-}
