@@ -1,11 +1,11 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
-const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote, getUpvotes } = require('./database');
+const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote } = require('./database');
 
-const clientId = '1257339880459997255'; // Replace with your bot's client ID
-const guildId = '727340837423546400'; // Replace with your Discord server's ID
-const visionBoardChannelId = '1258046349765640283'; // Replace with your vision board channel ID
+const clientId = '1257339880459997255';  // Replace with your bot's client ID
+const guildId = '727340837423546400';    // Replace with your Discord server's ID
+const visionBoardChannelId = '1258046349765640283';  // Replace with your vision board channel ID
 
 const client = new Client({
   intents: [
@@ -55,10 +55,12 @@ const rest = new REST({ version: '10' }).setToken(botToken);
 (async () => {
   try {
     console.log('Started refreshing application (/) commands.');
+
     await rest.put(
       Routes.applicationGuildCommands(clientId, guildId),
       { body: commands },
     );
+
     console.log('Successfully reloaded application (/) commands.');
   } catch (error) {
     console.error(error);
@@ -83,7 +85,7 @@ client.on('interactionCreate', async interaction => {
         console.log('Game name provided:', gameName);
         console.log('Number of players:', playerCount);
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ ephemeral: true });  // Acknowledge the interaction
 
         const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
         const apps = response.data.applist.apps;
@@ -113,7 +115,7 @@ client.on('interactionCreate', async interaction => {
           return;
         }
 
-        const selectedApp = matchingGames[0];
+        const selectedApp = matchingGames[0]; // Automatically select the first matching game
         console.log('Selected App:', selectedApp);
 
         const gameResponse = await axios.get(`http://store.steampowered.com/api/appdetails?appids=${selectedApp.appid}&key=${steamApiKey}`);
@@ -130,7 +132,7 @@ client.on('interactionCreate', async interaction => {
 
         const embed = new EmbedBuilder()
           .setTitle(gameDetails.title)
-          .setDescription(`Players needed: ${playerCount}\nPrice: ${price}\nGame ID: ${gameId}`)
+          .setDescription(`Price: ${gameDetails.price}\nPlayers needed: ${playerCount}\nGame ID: ${gameId}`)
           .setImage(gameDetails.coverArtUrl)
           .setFooter({ text: `Game ID: ${gameId}` });
 
@@ -142,7 +144,7 @@ client.on('interactionCreate', async interaction => {
         const upvoteButton = new ButtonBuilder()
           .setCustomId(`upvote_${gameId}`)
           .setLabel('Upvote')
-          .setStyle(ButtonStyle.Primary);
+          .setStyle(ButtonStyle.Success);
 
         const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton);
 
@@ -150,17 +152,24 @@ client.on('interactionCreate', async interaction => {
         const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
 
         await interaction.deleteReply();
-        await interaction.channel.messages.fetch(interaction.id).then(msg => msg.delete());
+        try {
+          const msg = await interaction.channel.messages.fetch(interaction.id);
+          await msg.delete();
+        } catch (error) {
+          console.error(`Failed to delete the original interaction message: ${error.message}`);
+        }
 
       } else if (commandName === 'deletegame') {
         const gameId = interaction.options.getInteger('gameid');
 
+        // Find and delete the game from the database
         const result = await deleteGameFromDatabase(gameId);
         if (!result) {
           await interaction.reply({ content: `Game with ID ${gameId} not found.`, ephemeral: true });
           return;
         }
 
+        // Acknowledge the deletion
         await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
       }
     } else if (interaction.isAutocomplete()) {
@@ -182,32 +191,44 @@ client.on('interactionCreate', async interaction => {
             return a.name.length - b.name.length;
           })
           .slice(0, 25)
-          .map(app => ({ name: app.name.substring(0, 100), value: app.appid.toString() }));
+          .map(app => ({ name: app.name.slice(0, 100), value: app.appid.toString() }));
 
         await interaction.respond(matchingGames);
       }
     } else if (interaction.isButton()) {
       const [action, gameId] = interaction.customId.split('_');
       if (action === 'delete') {
+        // Find and delete the game from the database
         const result = await deleteGameFromDatabase(gameId);
         if (!result) {
           await interaction.reply({ content: `Game with ID ${gameId} not found in database.`, ephemeral: true });
           return;
         }
 
+        // Delete the message containing the game
         await interaction.message.delete();
+
+        // Acknowledge the deletion
         await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
       } else if (action === 'upvote') {
-        const userId = await saveUser(interaction.user.id, interaction.user.username);
-        const success = await saveUpvote(gameId, userId);
-        if (!success) {
-          await interaction.reply({ content: `You have already upvoted this game.`, ephemeral: true });
+        const userId = interaction.user.id;
+        const username = interaction.user.username;
+
+        // Save the upvote to the database
+        const result = await saveUpvote(gameId, userId, username);
+
+        if (!result) {
+          await interaction.reply({ content: `Failed to upvote the game with ID ${gameId}.`, ephemeral: true });
           return;
         }
 
-        const upvotes = await getUpvotes(gameId);
-        const embed = new EmbedBuilder(interaction.message.embeds[0]);
-        embed.setDescription(`${embed.data.description.split('\n')[0]}\nPrice: ${embed.data.description.split('\n')[1].split(': ')[1]}\nGame ID: ${gameId}\n\nUpvotes: ${upvotes.count}\n${upvotes.users.join(', ')}`);
+        // Update the embed with the new upvote information
+        const upvotes = await getUpvotesForGame(gameId);
+        const upvoteUsernames = upvotes.map(vote => vote.username).join(', ');
+        const embed = interaction.message.embeds[0];
+        const newDescription = embed.description.replace(/Upvotes:.*$/m, `Upvotes: ${upvotes.length}\nUsers: ${upvoteUsernames}`);
+
+        embed.setDescription(newDescription);
 
         await interaction.update({ embeds: [embed] });
       }
@@ -227,3 +248,15 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(botToken);
+
+async function getUpvotesForGame(gameId) {
+  const query = `
+    SELECT users.username
+    FROM votes
+    JOIN users ON votes.user_id = users.id
+    WHERE votes.game_id = $1
+  `;
+  const values = [gameId];
+  const result = await pool.query(query, values);
+  return result.rows;
+}
