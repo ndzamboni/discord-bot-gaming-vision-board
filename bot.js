@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
-const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote } = require('./database');
+const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote, getUpvotesForGame } = require('./database');
 
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
 const guildId = '727340837423546400';    // Replace with your Discord server's ID
@@ -206,15 +206,7 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
       } else if (action === 'upvote') {
         const userId = interaction.user.id;
-        const username = interaction.user.username;
-
-        // Save the upvote to the database
-        const result = await saveUpvote(gameId, userId, username);
-
-        if (!result) {
-          await interaction.reply({ content: `Failed to upvote the game with ID ${gameId}.`, ephemeral: true });
-          return;
-        }
+        await saveUpvote(gameId, userId);
 
         // Update the embed with the upvote count and usernames
         const upvotes = await getUpvotesForGame(gameId);

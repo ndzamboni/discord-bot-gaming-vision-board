@@ -39,26 +39,22 @@ async function saveUpvote(gameId, userId) {
   const query = `
     INSERT INTO votes (game_id, user_id)
     VALUES ($1, $2)
-    ON CONFLICT (game_id, user_id) DO NOTHING
+    ON CONFLICT DO NOTHING
   `;
   const values = [gameId, userId];
-  const result = await pool.query(query, values);
-  return result.rowCount > 0;
+  await pool.query(query, values);
 }
 
-async function getUpvotes(gameId) {
+async function getUpvotesForGame(gameId) {
   const query = `
-    SELECT u.username
-    FROM votes v
-    JOIN users u ON v.user_id = u.id
-    WHERE v.game_id = $1
+    SELECT users.username
+    FROM votes
+    JOIN users ON votes.user_id = users.id
+    WHERE votes.game_id = $1
   `;
   const values = [gameId];
   const result = await pool.query(query, values);
-  return {
-    count: result.rowCount,
-    users: result.rows.map(row => row.username)
-  };
+  return result.rows;
 }
 
 module.exports = {
@@ -66,5 +62,5 @@ module.exports = {
   saveGameToDatabase,
   deleteGameFromDatabase,
   saveUpvote,
-  getUpvotes,
+  getUpvotesForGame,
 };
