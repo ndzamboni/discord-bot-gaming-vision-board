@@ -152,13 +152,7 @@ client.on('interactionCreate', async interaction => {
         const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
 
         await interaction.deleteReply();
-        try {
-          const msg = await interaction.channel.messages.fetch(interaction.id);
-          await msg.delete();
-        } catch (error) {
-          console.error(`Failed to delete the original interaction message: ${error.message}`);
-        }
-
+        // Removed code trying to delete the interaction message
       } else if (commandName === 'deletegame') {
         const gameId = interaction.options.getInteger('gameid');
 
@@ -222,15 +216,17 @@ client.on('interactionCreate', async interaction => {
           return;
         }
 
-        // Update the embed with the new upvote information
+        // Update the embed with the upvote count and usernames
         const upvotes = await getUpvotesForGame(gameId);
-        const upvoteUsernames = upvotes.map(vote => vote.username).join(', ');
+        const upvoteUsernames = upvotes.map(row => row.username).join(', ');
+        const upvoteCount = upvotes.length;
+
         const embed = interaction.message.embeds[0];
-        const newDescription = embed.description.replace(/Upvotes:.*$/m, `Upvotes: ${upvotes.length}\nUsers: ${upvoteUsernames}`);
+        embed.setDescription(`Price: ${embed.description.split('\n')[0]}\nPlayers needed: ${embed.description.split('\n')[1].split(': ')[1]}\nGame ID: ${gameId}\n\nUpvotes: ${upvoteCount}\nUsers: ${upvoteUsernames}`);
 
-        embed.setDescription(newDescription);
+        const row = interaction.message.components[0];
 
-        await interaction.update({ embeds: [embed] });
+        await interaction.update({ embeds: [embed], components: [row] });
       }
     }
   } catch (error) {
