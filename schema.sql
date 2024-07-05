@@ -19,7 +19,8 @@ CREATE TABLE games (
     title VARCHAR(255) NOT NULL,
     cover_art_url VARCHAR(255),
     player_count INTEGER NOT NULL,
-    posted_by INTEGER REFERENCES users(id)
+    posted_by INTEGER REFERENCES users(id),
+    price VARCHAR(255)  -- Added price column
 );
 
 CREATE TABLE votes (

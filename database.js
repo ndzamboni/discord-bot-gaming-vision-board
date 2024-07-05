@@ -17,11 +17,11 @@ async function saveUser(discordId, username) {
 
 async function saveGameToDatabase(gameDetails, userId) {
   const query = `
-    INSERT INTO games (title, cover_art_url, player_count, posted_by)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO games (title, cover_art_url, player_count, posted_by, price)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING id
   `;
-  const values = [gameDetails.title, gameDetails.coverArtUrl, gameDetails.playerCount, userId];
+  const values = [gameDetails.title, gameDetails.coverArtUrl, gameDetails.playerCount, userId, gameDetails.price];
   const result = await pool.query(query, values);
   return result.rows[0].id;
 }
