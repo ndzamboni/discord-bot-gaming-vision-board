@@ -3,9 +3,9 @@ const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
 const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote, getUpvotes } = require('./database');
 
-const clientId = '1257339880459997255';
-const guildId = '727340837423546400';
-const visionBoardChannelId = '1258046349765640283';
+const clientId = '1257339880459997255'; // Replace with your bot's client ID
+const guildId = '727340837423546400'; // Replace with your Discord server's ID
+const visionBoardChannelId = '1258046349765640283'; // Replace with your vision board channel ID
 
 const client = new Client({
   intents: [
@@ -23,14 +23,14 @@ const commands = [
     options: [
       {
         name: 'game',
-        type: 3,
+        type: 3, // STRING
         description: 'Start typing the name of the game',
         required: true,
         autocomplete: true,
       },
       {
         name: 'players',
-        type: 4,
+        type: 4, // INTEGER
         description: 'Number of players needed',
         required: true,
       },
@@ -42,7 +42,7 @@ const commands = [
     options: [
       {
         name: 'gameid',
-        type: 4,
+        type: 4, // INTEGER
         description: 'The game ID to delete',
         required: true,
       },
@@ -182,7 +182,7 @@ client.on('interactionCreate', async interaction => {
             return a.name.length - b.name.length;
           })
           .slice(0, 25)
-          .map(app => ({ name: app.name, value: app.appid.toString() }));
+          .map(app => ({ name: app.name.substring(0, 100), value: app.appid.toString() }));
 
         await interaction.respond(matchingGames);
       }
@@ -206,8 +206,8 @@ client.on('interactionCreate', async interaction => {
         }
 
         const upvotes = await getUpvotes(gameId);
-        const embed = interaction.message.embeds[0];
-        embed.setDescription(`${embed.description.split('\n')[0]}\nPrice: ${embed.description.split('\n')[1].split(': ')[1]}\nGame ID: ${gameId}\n\nUpvotes: ${upvotes.count}\n${upvotes.users.join(', ')}`);
+        const embed = new EmbedBuilder(interaction.message.embeds[0]);
+        embed.setDescription(`${embed.data.description.split('\n')[0]}\nPrice: ${embed.data.description.split('\n')[1].split(': ')[1]}\nGame ID: ${gameId}\n\nUpvotes: ${upvotes.count}\n${upvotes.users.join(', ')}`);
 
         await interaction.update({ embeds: [embed] });
       }
