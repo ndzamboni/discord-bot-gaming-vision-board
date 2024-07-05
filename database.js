@@ -27,12 +27,30 @@ async function saveGameToDatabase(gameDetails, userId) {
 }
 
 async function deleteGameFromDatabase(gameId) {
-  const query = `
-    DELETE FROM games WHERE id = $1
-  `;
-  const values = [gameId];
-  const result = await pool.query(query, values);
-  return result.rowCount > 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Delete votes associated with the game
+    const deleteVotesQuery = `
+      DELETE FROM votes WHERE game_id = $1
+    `;
+    await client.query(deleteVotesQuery, [gameId]);
+
+    // Delete the game
+    const deleteGameQuery = `
+      DELETE FROM games WHERE id = $1
+    `;
+    const result = await client.query(deleteGameQuery, [gameId]);
+
+    await client.query('COMMIT');
+    return result.rowCount > 0;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function saveUpvote(gameId, discordId, username) {
