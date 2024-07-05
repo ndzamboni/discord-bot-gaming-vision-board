@@ -178,7 +178,7 @@ client.on('interactionCreate', async interaction => {
           await interaction.reply({ content: 'Failed to delete the game.', ephemeral: true });
         }
       } else if (action === 'upvote') {
-        await saveUpvote(gameId, interaction.user.id);
+        await saveUpvote(gameId, interaction.user.id, interaction.user.username);
 
         const upvotes = await getUpvotesForGame(gameId);
         const upvoteUsernames = upvotes.map(row => row.username).join('\n');

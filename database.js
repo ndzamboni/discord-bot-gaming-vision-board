@@ -35,14 +35,14 @@ async function deleteGameFromDatabase(gameId) {
   return result.rowCount > 0;
 }
 
-async function saveUpvote(gameId, userId) {
-  await saveUser(userId); // Ensure the user is saved first
+async function saveUpvote(gameId, discordId, username) {
+  await saveUser(discordId, username); // Ensure the user is saved first
 
   const query = `
     INSERT INTO votes (game_id, user_id)
-    VALUES ($1, $2)
+    VALUES ($1, (SELECT id FROM users WHERE discord_id = $2))
   `;
-  const values = [gameId, userId];
+  const values = [gameId, discordId];
   await pool.query(query, values);
 }
 
