@@ -26,5 +26,5 @@ CREATE TABLE games (
 CREATE TABLE votes (
     id SERIAL PRIMARY KEY,
     game_id INTEGER REFERENCES games(id),
-    user_id BIGINT REFERENCES users(discord_id)
+    user_id INTEGER REFERENCES users(id)  -- Correct foreign key reference
 );

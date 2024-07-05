@@ -185,7 +185,7 @@ client.on('interactionCreate', async interaction => {
         const upvoteCount = upvotes.length;
 
         const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-        embed.setDescription(`Players needed: ${embed.fields[0].value.split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.fields[1].value.split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
+        embed.setDescription(`Players needed: ${embed.data.description.split('\n')[0].split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.data.description.split('\n')[2].split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
 
         await interaction.message.edit({ embeds: [embed] });
         await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
