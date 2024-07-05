@@ -132,7 +132,7 @@ client.on('interactionCreate', async interaction => {
 
         const embed = new EmbedBuilder()
           .setTitle(gameDetails.title)
-          .setDescription(`Price: ${gameDetails.price}\nPlayers needed: ${playerCount}\nGame ID: ${gameId}`)
+          .setDescription(`Players needed: ${playerCount}\nGame ID: ${gameId}\nPrice: ${gameDetails.price}`)
           .setImage(gameDetails.coverArtUrl)
           .setFooter({ text: `Game ID: ${gameId}` });
 
@@ -144,7 +144,7 @@ client.on('interactionCreate', async interaction => {
         const upvoteButton = new ButtonBuilder()
           .setCustomId(`upvote_${gameId}`)
           .setLabel('Upvote')
-          .setStyle(ButtonStyle.Success);
+          .setStyle(ButtonStyle.Primary);
 
         const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton);
 
@@ -152,85 +152,65 @@ client.on('interactionCreate', async interaction => {
         const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
 
         await interaction.deleteReply();
-        // Removed code trying to delete the interaction message
       } else if (commandName === 'deletegame') {
         const gameId = interaction.options.getInteger('gameid');
+        console.log('Game ID to delete:', gameId);
 
-        // Find and delete the game from the database
-        const result = await deleteGameFromDatabase(gameId);
-        if (!result) {
-          await interaction.reply({ content: `Game with ID ${gameId} not found.`, ephemeral: true });
-          return;
+        const success = await deleteGameFromDatabase(gameId);
+        if (success) {
+          await interaction.reply({ content: 'Game deleted successfully.', ephemeral: true });
+        } else {
+          await interaction.reply({ content: 'Failed to delete the game.', ephemeral: true });
         }
-
-        // Acknowledge the deletion
-        await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
-      }
-    } else if (interaction.isAutocomplete()) {
-      const focusedOption = interaction.options.getFocused(true);
-      const query = focusedOption.value;
-
-      if (focusedOption.name === 'game') {
-        const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
-        const apps = response.data.applist.apps;
-
-        const lowerCaseQuery = query.toLowerCase();
-        const matchingGames = apps
-          .filter(app => app.name.toLowerCase().includes(lowerCaseQuery))
-          .sort((a, b) => {
-            const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseQuery);
-            const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseQuery);
-            if (aStartsWith && !bStartsWith) return -1;
-            if (!aStartsWith && bStartsWith) return 1;
-            return a.name.length - b.name.length;
-          })
-          .slice(0, 25)
-          .map(app => ({ name: app.name.slice(0, 100), value: app.appid.toString() }));
-
-        await interaction.respond(matchingGames);
       }
     } else if (interaction.isButton()) {
-      const [action, gameId] = interaction.customId.split('_');
+      const customId = interaction.customId;
+      console.log('Button interaction:', customId);
+
+      const [action, gameId] = customId.split('_');
+
       if (action === 'delete') {
-        // Find and delete the game from the database
-        const result = await deleteGameFromDatabase(gameId);
-        if (!result) {
-          await interaction.reply({ content: `Game with ID ${gameId} not found in database.`, ephemeral: true });
-          return;
+        const success = await deleteGameFromDatabase(gameId);
+        if (success) {
+          await interaction.message.delete();
+          await interaction.reply({ content: 'Game deleted successfully.', ephemeral: true });
+        } else {
+          await interaction.reply({ content: 'Failed to delete the game.', ephemeral: true });
         }
-
-        // Delete the message containing the game
-        await interaction.message.delete();
-
-        // Acknowledge the deletion
-        await interaction.reply({ content: `Game with ID ${gameId} deleted successfully.`, ephemeral: true });
       } else if (action === 'upvote') {
-        const userId = interaction.user.id;
-        await saveUpvote(gameId, userId);
+        await saveUpvote(gameId, interaction.user.id);
 
-        // Update the embed with the upvote count and usernames
         const upvotes = await getUpvotesForGame(gameId);
-        const upvoteUsernames = upvotes.map(row => row.username).join(', ');
+        const upvoteUsernames = upvotes.map(row => row.username).join('\n');
         const upvoteCount = upvotes.length;
 
         const embed = interaction.message.embeds[0];
-        embed.setDescription(`Price: ${embed.description.split('\n')[0]}\nPlayers needed: ${embed.description.split('\n')[1].split(': ')[1]}\nGame ID: ${gameId}\n\nUpvotes: ${upvoteCount}\nUsers: ${upvoteUsernames}`);
+        embed.setDescription(`Players needed: ${playerCount}\nGame ID: ${gameId}\nPrice: ${price}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
 
-        const row = interaction.message.components[0];
+        await interaction.message.edit({ embeds: [embed] });
+        await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
+      }
+    } else if (interaction.isAutocomplete()) {
+      const focusedOption = interaction.options.getFocused(true);
 
-        await interaction.update({ embeds: [embed], components: [row] });
+      if (focusedOption.name === 'game') {
+        const searchQuery = focusedOption.value;
+        const response = await axios.get(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`);
+        const apps = response.data.applist.apps;
+
+        const matchingGames = apps.filter(app => app.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                  .slice(0, 25)
+                                  .map(app => ({ name: app.name, value: app.appid.toString() }));
+
+        await interaction.respond(matchingGames);
       }
     }
   } catch (error) {
     console.error('Error handling interaction:', error);
-    try {
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: 'There was an error while processing your request. Please try again later.', ephemeral: true });
-      } else {
-        await interaction.reply({ content: 'There was an error while processing your request. Please try again later.', ephemeral: true });
-      }
-    } catch (followUpError) {
-      console.error('Error sending follow-up message:', followUpError);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+    } else {
+      await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
     }
   }
 });

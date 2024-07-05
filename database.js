@@ -17,11 +17,11 @@ async function saveUser(discordId, username) {
 
 async function saveGameToDatabase(gameDetails, userId) {
   const query = `
-    INSERT INTO games (title, cover_art_url, player_count, posted_by, price)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO games (title, cover_art_url, player_count, posted_by)
+    VALUES ($1, $2, $3, $4)
     RETURNING id
   `;
-  const values = [gameDetails.title, gameDetails.coverArtUrl, gameDetails.playerCount, userId, gameDetails.price];
+  const values = [gameDetails.title, gameDetails.coverArtUrl, gameDetails.playerCount, userId];
   const result = await pool.query(query, values);
   return result.rows[0].id;
 }
@@ -39,7 +39,6 @@ async function saveUpvote(gameId, userId) {
   const query = `
     INSERT INTO votes (game_id, user_id)
     VALUES ($1, $2)
-    ON CONFLICT DO NOTHING
   `;
   const values = [gameId, userId];
   await pool.query(query, values);
@@ -49,7 +48,7 @@ async function getUpvotesForGame(gameId) {
   const query = `
     SELECT users.username
     FROM votes
-    JOIN users ON votes.user_id = users.id
+    JOIN users ON votes.user_id = users.discord_id
     WHERE votes.game_id = $1
   `;
   const values = [gameId];
