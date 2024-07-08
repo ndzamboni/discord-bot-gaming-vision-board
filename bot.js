@@ -195,24 +195,29 @@ client.on('interactionCreate', async interaction => {
           await interaction.message.edit({ embeds: [embed] });
           await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
         } catch (error) {
-          if (error.message.includes('unique constraint')) {
+          console.error('Error saving upvote:', error);
+          if (error.code === '23505') { // Unique violation
             await interaction.reply({ content: 'You have already voted for this game.', ephemeral: true });
           } else {
-            console.error('Error saving upvote:', error);
             await interaction.reply({ content: 'There was an error while processing your upvote.', ephemeral: true });
           }
         }
       } else if (action === 'remove_upvote') {
-        await removeUpvote(gameId, interaction.user.id);
-        const upvotes = await getUpvotesForGame(gameId);
-        const upvoteUsernames = upvotes.map(row => row.username).join('\n');
-        const upvoteCount = upvotes.length;
+        try {
+          await removeUpvote(gameId, interaction.user.id);
+          const upvotes = await getUpvotesForGame(gameId);
+          const upvoteUsernames = upvotes.map(row => row.username).join('\n');
+          const upvoteCount = upvotes.length;
 
-        const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-        embed.setDescription(`Players needed: ${embed.data.description.split('\n')[0].split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.data.description.split('\n')[2].split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
+          const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+          embed.setDescription(`Players needed: ${embed.data.description.split('\n')[0].split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.data.description.split('\n')[2].split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
 
-        await interaction.message.edit({ embeds: [embed] });
-        await interaction.reply({ content: 'Upvote removed successfully.', ephemeral: true });
+          await interaction.message.edit({ embeds: [embed] });
+          await interaction.reply({ content: 'Upvote removed successfully.', ephemeral: true });
+        } catch (error) {
+          console.error('Error removing upvote:', error);
+          await interaction.reply({ content: 'There was an error while processing your request.', ephemeral: true });
+        }
       }
     } else if (interaction.isAutocomplete()) {
       const focusedOption = interaction.options.getFocused(true);
