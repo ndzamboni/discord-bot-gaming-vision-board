@@ -197,7 +197,11 @@ client.on('interactionCreate', async interaction => {
           await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
         } catch (error) {
           console.error('Error saving upvote:', error);
-          await interaction.reply({ content: 'You can only vote once on each game.', ephemeral: true });
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'You can only vote once on each game.', ephemeral: true });
+          } else {
+            await interaction.followUp({ content: 'You can only vote once on each game.', ephemeral: true });
+          }
         }
       } else if (action === 'remove_upvote') {
         try {
@@ -214,7 +218,11 @@ client.on('interactionCreate', async interaction => {
           await interaction.reply({ content: 'Upvote removed successfully.', ephemeral: true });
         } catch (error) {
           console.error('Error removing upvote:', error);
-          await interaction.reply({ content: 'Failed to remove upvote.', ephemeral: true });
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'There was an error removing your upvote.', ephemeral: true });
+          } else {
+            await interaction.followUp({ content: 'There was an error removing your upvote.', ephemeral: true });
+          }
         }
       }
     } else if (interaction.isAutocomplete()) {
