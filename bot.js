@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
-const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote, getUpvotesForGame } = require('./database');
+const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote, removeUpvote, getUpvotesForGame } = require('./database');
 
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
 const guildId = '727340837423546400';    // Replace with your Discord server's ID
@@ -146,7 +146,12 @@ client.on('interactionCreate', async interaction => {
           .setLabel('Upvote')
           .setStyle(ButtonStyle.Primary);
 
-        const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton);
+        const removeUpvoteButton = new ButtonBuilder()
+          .setCustomId(`remove_upvote_${gameId}`)
+          .setLabel('Remove Upvote')
+          .setStyle(ButtonStyle.Secondary);
+
+        const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton, removeUpvoteButton);
 
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
         const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
@@ -170,25 +175,61 @@ client.on('interactionCreate', async interaction => {
       const [action, gameId] = customId.split('_');
 
       if (action === 'delete') {
-        const success = await deleteGameFromDatabase(gameId);
-        if (success) {
-          await interaction.message.delete();
-          await interaction.reply({ content: 'Game deleted successfully.', ephemeral: true });
-        } else {
-          await interaction.reply({ content: 'Failed to delete the game.', ephemeral: true });
+        try {
+          const success = await deleteGameFromDatabase(gameId);
+          if (success) {
+            await interaction.message.delete();
+            await interaction.reply({ content: 'Game deleted successfully.', ephemeral: true });
+          } else {
+            await interaction.reply({ content: 'Failed to delete the game.', ephemeral: true });
+          }
+        } catch (error) {
+          if (error.code === '23503') { // Foreign key violation
+            await interaction.reply({ content: 'Cannot delete the game as it has votes associated with it.', ephemeral: true });
+          } else {
+            throw error;
+          }
         }
       } else if (action === 'upvote') {
-        await saveUpvote(gameId, interaction.user.id, interaction.user.username);
+        try {
+          await saveUpvote(gameId, interaction.user.id, interaction.user.username);
 
-        const upvotes = await getUpvotesForGame(gameId);
-        const upvoteUsernames = upvotes.map(row => row.username).join('\n');
-        const upvoteCount = upvotes.length;
+          const upvotes = await getUpvotesForGame(gameId);
+          const upvoteUsernames = upvotes.map(row => row.username).join('\n');
+          const upvoteCount = upvotes.length;
 
-        const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-        embed.setDescription(`Players needed: ${embed.data.description.split('\n')[0].split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.data.description.split('\n')[2].split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
+          const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+          embed.setDescription(`Players needed: ${embed.data.description.split('\n')[0].split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.data.description.split('\n')[2].split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
 
-        await interaction.message.edit({ embeds: [embed] });
-        await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
+          await interaction.message.edit({ embeds: [embed] });
+          await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
+        } catch (error) {
+          if (error.message === 'You have already voted for this game.') {
+            await interaction.reply({ content: error.message, ephemeral: true });
+          } else {
+            throw error;  // Re-throw unexpected errors
+          }
+        }
+      } else if (action === 'remove_upvote') {
+        try {
+          const success = await removeUpvote(gameId, interaction.user.id);
+          if (success) {
+            const upvotes = await getUpvotesForGame(gameId);
+            const upvoteUsernames = upvotes.map(row => row.username).join('\n');
+            const upvoteCount = upvotes.length;
+
+            const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+            embed.setDescription(`Players needed: ${embed.data.description.split('\n')[0].split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.data.description.split('\n')[2].split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
+
+            await interaction.message.edit({ embeds: [embed] });
+            await interaction.reply({ content: 'Upvote removed successfully.', ephemeral: true });
+          } else {
+            await interaction.reply({ content: 'You had not upvoted this game.', ephemeral: true });
+          }
+        } catch (error) {
+          console.error('Error removing upvote:', error);
+          await interaction.reply({ content: 'There was an error while removing the upvote.', ephemeral: true });
+        }
       }
     } else if (interaction.isAutocomplete()) {
       const focusedOption = interaction.options.getFocused(true);
