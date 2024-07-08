@@ -196,7 +196,7 @@ client.on('interactionCreate', async interaction => {
           await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
         } catch (error) {
           console.error('Error saving upvote:', error);
-          if (error.code === '23505') { // Unique violation
+          if (error.message === 'You have already voted for this game.') {
             await interaction.reply({ content: 'You have already voted for this game.', ephemeral: true });
           } else {
             await interaction.reply({ content: 'There was an error while processing your upvote.', ephemeral: true });

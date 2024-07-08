@@ -41,10 +41,16 @@ async function saveUpvote(gameId, discordId, username) {
   const query = `
     INSERT INTO votes (game_id, user_id)
     VALUES ($1, (SELECT id FROM users WHERE discord_id = $2))
-    ON CONFLICT (game_id, user_id) DO NOTHING
   `;
   const values = [gameId, discordId];
-  await pool.query(query, values);
+  try {
+    await pool.query(query, values);
+  } catch (error) {
+    if (error.code === '23505') { // Unique violation
+      throw new Error('You have already voted for this game.');
+    }
+    throw error;
+  }
 }
 
 async function removeUpvote(gameId, discordId) {
@@ -53,7 +59,10 @@ async function removeUpvote(gameId, discordId) {
     WHERE game_id = $1 AND user_id = (SELECT id FROM users WHERE discord_id = $2)
   `;
   const values = [gameId, discordId];
-  await pool.query(query, values);
+  const result = await pool.query(query, values);
+  if (result.rowCount === 0) {
+    throw new Error('No upvote found for this game by this user.');
+  }
 }
 
 async function getUpvotesForGame(gameId) {
