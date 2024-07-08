@@ -38,19 +38,10 @@ async function deleteGameFromDatabase(gameId) {
 async function saveUpvote(gameId, discordId, username) {
   await saveUser(discordId, username); // Ensure the user is saved first
 
-  const checkQuery = `
-    SELECT 1 FROM votes WHERE game_id = $1 AND user_id = (SELECT id FROM users WHERE discord_id = $2)
-  `;
-  const checkValues = [gameId, discordId];
-  const checkResult = await pool.query(checkQuery, checkValues);
-
-  if (checkResult.rowCount > 0) {
-    throw new Error('You have already voted for this game.');
-  }
-
   const query = `
     INSERT INTO votes (game_id, user_id)
     VALUES ($1, (SELECT id FROM users WHERE discord_id = $2))
+    ON CONFLICT (game_id, user_id) DO NOTHING
   `;
   const values = [gameId, discordId];
   await pool.query(query, values);
@@ -60,11 +51,9 @@ async function removeUpvote(gameId, discordId) {
   const query = `
     DELETE FROM votes
     WHERE game_id = $1 AND user_id = (SELECT id FROM users WHERE discord_id = $2)
-    RETURNING id
   `;
   const values = [gameId, discordId];
-  const result = await pool.query(query, values);
-  return result.rowCount > 0;
+  await pool.query(query, values);
 }
 
 async function getUpvotesForGame(gameId) {
