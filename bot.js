@@ -154,7 +154,7 @@ client.on('interactionCreate', async interaction => {
         const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton, removeUpvoteButton);
 
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
-        const message = await visionBoardChannel.send({ embeds: [embed], components: [row] });
+        await visionBoardChannel.send({ embeds: [embed], components: [row] });
 
         await interaction.deleteReply();
       } else if (commandName === 'deletegame') {

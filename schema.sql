@@ -31,3 +31,4 @@ CREATE TABLE votes (
     CONSTRAINT unique_vote UNIQUE (game_id, user_id)  -- Ensure unique votes
 );
 
+
