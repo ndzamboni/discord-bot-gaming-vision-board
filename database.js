@@ -41,16 +41,10 @@ async function saveUpvote(gameId, discordId, username) {
   const query = `
     INSERT INTO votes (game_id, user_id)
     VALUES ($1, (SELECT id FROM users WHERE discord_id = $2))
+    ON CONFLICT (game_id, user_id) DO NOTHING
   `;
   const values = [gameId, discordId];
-  try {
-    await pool.query(query, values);
-  } catch (error) {
-    if (error.code === '23505') { // Unique violation
-      throw new Error('You have already voted for this game.');
-    }
-    throw error;
-  }
+  await pool.query(query, values);
 }
 
 async function removeUpvote(gameId, discordId) {
@@ -77,6 +71,18 @@ async function getUpvotesForGame(gameId) {
   return result.rows;
 }
 
+async function userHasUpvoted(gameId, discordId) {
+  const query = `
+    SELECT 1
+    FROM votes v
+    JOIN users u ON v.user_id = u.id
+    WHERE v.game_id = $1 AND u.discord_id = $2
+  `;
+  const values = [gameId, discordId];
+  const result = await pool.query(query, values);
+  return result.rowCount > 0;
+}
+
 module.exports = {
   saveUser,
   saveGameToDatabase,
@@ -84,4 +90,5 @@ module.exports = {
   saveUpvote,
   removeUpvote,
   getUpvotesForGame,
+  userHasUpvoted,
 };

@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const { botToken, steamApiKey } = require('./config');
-const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote, removeUpvote, getUpvotesForGame } = require('./database');
+const { saveUser, saveGameToDatabase, deleteGameFromDatabase, saveUpvote, removeUpvote, getUpvotesForGame, userHasUpvoted } = require('./database');
 
 const clientId = '1257339880459997255';  // Replace with your bot's client ID
 const guildId = '727340837423546400';    // Replace with your Discord server's ID
@@ -146,12 +146,7 @@ client.on('interactionCreate', async interaction => {
           .setLabel('Upvote')
           .setStyle(ButtonStyle.Primary);
 
-        const removeUpvoteButton = new ButtonBuilder()
-          .setCustomId(`remove_upvote_${gameId}`)
-          .setLabel('Remove Upvote')
-          .setStyle(ButtonStyle.Secondary);
-
-        const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton, removeUpvoteButton);
+        const row = new ActionRowBuilder().addComponents(deleteButton, upvoteButton);
 
         const visionBoardChannel = await client.channels.fetch(visionBoardChannelId);
         await visionBoardChannel.send({ embeds: [embed], components: [row] });
@@ -184,27 +179,15 @@ client.on('interactionCreate', async interaction => {
         }
       } else if (action === 'upvote') {
         try {
-          await saveUpvote(gameId, interaction.user.id, interaction.user.username);
-          const upvotes = await getUpvotesForGame(gameId);
-          const upvoteUsernames = upvotes.map(row => row.username).join('\n');
-          const upvoteCount = upvotes.length;
-
-          const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-          embed.setDescription(`Players needed: ${embed.data.description.split('\n')[0].split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.data.description.split('\n')[2].split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
-
-          await interaction.message.edit({ embeds: [embed] });
-          await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
-        } catch (error) {
-          console.error('Error saving upvote:', error);
-          if (error.message === 'You have already voted for this game.') {
-            await interaction.reply({ content: 'You have already voted for this game.', ephemeral: true });
+          const hasUpvoted = await userHasUpvoted(gameId, interaction.user.id);
+          if (hasUpvoted) {
+            await removeUpvote(gameId, interaction.user.id);
+            await interaction.reply({ content: 'Upvote removed successfully.', ephemeral: true });
           } else {
-            await interaction.reply({ content: 'There was an error while processing your upvote.', ephemeral: true });
+            await saveUpvote(gameId, interaction.user.id, interaction.user.username);
+            await interaction.reply({ content: 'Upvoted successfully.', ephemeral: true });
           }
-        }
-      } else if (action === 'remove_upvote') {
-        try {
-          await removeUpvote(gameId, interaction.user.id);
+
           const upvotes = await getUpvotesForGame(gameId);
           const upvoteUsernames = upvotes.map(row => row.username).join('\n');
           const upvoteCount = upvotes.length;
@@ -213,10 +196,9 @@ client.on('interactionCreate', async interaction => {
           embed.setDescription(`Players needed: ${embed.data.description.split('\n')[0].split(': ')[1]}\nGame ID: ${gameId}\nPrice: ${embed.data.description.split('\n')[2].split(': ')[1]}\n\nUpvotes: ${upvoteCount}\n${upvoteUsernames}`);
 
           await interaction.message.edit({ embeds: [embed] });
-          await interaction.reply({ content: 'Upvote removed successfully.', ephemeral: true });
         } catch (error) {
-          console.error('Error removing upvote:', error);
-          await interaction.reply({ content: 'There was an error while processing your request.', ephemeral: true });
+          console.error('Error handling upvote:', error);
+          await interaction.reply({ content: 'There was an error while processing your upvote.', ephemeral: true });
         }
       }
     } else if (interaction.isAutocomplete()) {
