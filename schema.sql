@@ -4,6 +4,7 @@
 -- Connect to the database
 -- \c discord_game_bot;
 -- Drop existing tables if they exist
+-- Drop existing tables if they exist
 DROP TABLE IF EXISTS votes;
 DROP TABLE IF EXISTS games;
 DROP TABLE IF EXISTS users;
@@ -26,6 +27,7 @@ CREATE TABLE games (
 CREATE TABLE votes (
     id SERIAL PRIMARY KEY,
     game_id INTEGER REFERENCES games(id),
-    user_id INTEGER REFERENCES users(id)  -- Correct foreign key reference
-    UNIQUE (game_id, user_id)   -- Added unique constraint
+    user_id INTEGER REFERENCES users(id),
+    CONSTRAINT unique_vote UNIQUE (game_id, user_id)  -- Ensure unique votes
 );
+
