@@ -27,4 +27,5 @@ CREATE TABLE votes (
     id SERIAL PRIMARY KEY,
     game_id INTEGER REFERENCES games(id),
     user_id INTEGER REFERENCES users(id)  -- Correct foreign key reference
+    UNIQUE (game_id, user_id)   -- Added unique constraint
 );

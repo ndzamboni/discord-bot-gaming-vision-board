@@ -27,34 +27,26 @@ async function saveGameToDatabase(gameDetails, userId) {
 }
 
 async function deleteGameFromDatabase(gameId) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    
-    // Delete votes associated with the game
-    const deleteVotesQuery = `
-      DELETE FROM votes WHERE game_id = $1
-    `;
-    await client.query(deleteVotesQuery, [gameId]);
-
-    // Delete the game
-    const deleteGameQuery = `
-      DELETE FROM games WHERE id = $1
-    `;
-    const result = await client.query(deleteGameQuery, [gameId]);
-
-    await client.query('COMMIT');
-    return result.rowCount > 0;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+  const query = `
+    DELETE FROM games WHERE id = $1
+  `;
+  const values = [gameId];
+  const result = await pool.query(query, values);
+  return result.rowCount > 0;
 }
 
 async function saveUpvote(gameId, discordId, username) {
   await saveUser(discordId, username); // Ensure the user is saved first
+
+  const checkQuery = `
+    SELECT 1 FROM votes WHERE game_id = $1 AND user_id = (SELECT id FROM users WHERE discord_id = $2)
+  `;
+  const checkValues = [gameId, discordId];
+  const checkResult = await pool.query(checkQuery, checkValues);
+
+  if (checkResult.rowCount > 0) {
+    throw new Error('You have already voted for this game.');
+  }
 
   const query = `
     INSERT INTO votes (game_id, user_id)
@@ -62,6 +54,17 @@ async function saveUpvote(gameId, discordId, username) {
   `;
   const values = [gameId, discordId];
   await pool.query(query, values);
+}
+
+async function removeUpvote(gameId, discordId) {
+  const query = `
+    DELETE FROM votes
+    WHERE game_id = $1 AND user_id = (SELECT id FROM users WHERE discord_id = $2)
+    RETURNING id
+  `;
+  const values = [gameId, discordId];
+  const result = await pool.query(query, values);
+  return result.rowCount > 0;
 }
 
 async function getUpvotesForGame(gameId) {
@@ -81,5 +84,6 @@ module.exports = {
   saveGameToDatabase,
   deleteGameFromDatabase,
   saveUpvote,
+  removeUpvote,
   getUpvotesForGame,
 };
